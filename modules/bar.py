@@ -736,15 +736,16 @@ class Bar(Window):
             return True
 
         diameter = 24
+        reduced_diameter = 8 # New variable for reduced size during stretch
         if data.VERTICAL:
             pos_prop, size_prop = "margin-top", "min-height"
-            other_size_prop, other_size_val = "min-width", diameter
+            other_size_prop, other_size_val = "min-width", reduced_diameter
             target_pos = (
                 target_allocation.y + (target_allocation.height / 2) - (diameter / 2)
             )
         else:
             pos_prop, size_prop = "margin-left", "min-width"
-            other_size_prop, other_size_val = "min-height", diameter
+            other_size_prop, other_size_val = "min-height", reduced_diameter
             target_pos = (
                 target_allocation.x + (target_allocation.width / 2) - (diameter / 2)
             )
