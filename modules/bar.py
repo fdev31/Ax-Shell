@@ -121,9 +121,9 @@ class Bar(Window):
 
         # Calculate workspace range based on monitor_id
         # Monitor 0: workspaces 1-10, Monitor 1: workspaces 11-20, etc.
-        start_workspace = self.monitor_id * 10 + 1
-        end_workspace = start_workspace + 10
-        workspace_range = range(start_workspace, end_workspace)
+        start_workspace = data.BAR_WORKSPACE_START
+        end_workspace = data.BAR_WORKSPACE_END
+        workspace_range = range(start_workspace, end_workspace + 1)
 
         self.workspaces = Workspaces(
             name="workspaces",
