@@ -65,7 +65,7 @@ DEFAULTS = {
     "dock_icon_size": 28,
     "dock_always_show": False,
     "bar_workspace_start": 1,
-    "bar_workspace_end": 8,
+    "bar_workspace_end": 10,
     "bar_workspace_show_number": False,
     "bar_workspace_use_chinese_numerals": False,
     "bar_hide_special_workspace": True,
