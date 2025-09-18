@@ -79,6 +79,7 @@ class Bar(Window):
             monitor=monitor_id,
         )
 
+        self._animation_queue = []
         self.anchor_var = ""
         self.margin_var = ""
 
@@ -549,9 +550,6 @@ class Bar(Window):
 
     def update_rail(self, workspace_id, initial_setup=False):
         """Update the workspace rail position based on the workspace button"""
-        if self.is_animating_rail and not initial_setup:
-            return
-
         logger.info(f"Updating rail for workspace {workspace_id}")
         workspaces = self.children_workspaces
         active_button = next(
@@ -568,10 +566,13 @@ class Bar(Window):
             return
 
         if initial_setup:
-            GLib.idle_add(self._position_rail_initially, active_button)
+            GLib.timeout_add(1000, self._position_rail_initially, active_button)
         else:
-            self.is_animating_rail = True
-            GLib.idle_add(self._update_rail_with_animation, active_button)
+            if self.is_animating_rail:
+                self._animation_queue.append((self._update_rail_with_animation, active_button))
+            else:
+                self.is_animating_rail = True
+                GLib.idle_add(self._update_rail_with_animation, active_button)
 
     def _position_rail_initially(self, active_button):
         allocation = active_button.get_allocation()
@@ -633,15 +634,16 @@ class Bar(Window):
             )
 
         if target_pos == self.current_rail_pos:
-            self.is_animating_rail = False
+            self._trigger_pending_animations()
             return False
 
         distance = target_pos - self.current_rail_pos
         stretched_size = self.current_rail_size + abs(distance)
         stretch_pos = target_pos if distance < 0 else self.current_rail_pos
 
-        stretch_duration = 0.1
-        shrink_duration = 0.15
+        decimator = len(self._animation_queue) + 1
+        stretch_duration = 0.1 / decimator
+        shrink_duration = 0.15 / decimator
 
         reduced_diameter = max(2, int(diameter - abs(distance / 10.0)))
 
@@ -700,14 +702,23 @@ class Bar(Window):
         )
         return False
 
+    def _trigger_pending_animations(self):
+        if self._animation_queue:
+            next_anim = self._animation_queue.pop(0)
+            GLib.idle_add(*next_anim)
+            return True
+        else:
+            self.is_animating_rail = False
+        return False
+
     def _finalize_rail_animation(self, final_pos, final_size):
         """Finalize animation and update state."""
         self.current_rail_pos = final_pos
         self.current_rail_size = final_size
-        self.is_animating_rail = False
-        logger.info(
-            f"Rail animation finished at pos={self.current_rail_pos}, size={self.current_rail_size}"
-        )
+        if not self._trigger_pending_animations():
+            logger.info(
+                f"Rail animation finished at pos={self.current_rail_pos}, size={self.current_rail_size}"
+            )
         return False
 
     @property
