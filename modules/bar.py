@@ -61,7 +61,7 @@ def build_caption(i: int, start_workspace: int):
             CHINESE_NUMERALS[(i - start_workspace)]
             if data.BAR_WORKSPACE_USE_CHINESE_NUMERALS
             and 0 <= (i - start_workspace) < len(CHINESE_NUMERALS)
-            else (str(i) if data.BAR_WORKSPACE_SHOW_NUMBER else "")
+            else (str(i) if data.BAR_WORKSPACE_SHOW_NUMBER else "")
         )
     else:
         return label
