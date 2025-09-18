@@ -80,7 +80,7 @@ class Bar(Window):
             monitor=monitor_id,
         )
 
-        self._animation_queue: list[tuple] = []
+        self._animation_queue: None | tuple = None
         self.anchor_var = ""
         self.margin_var = ""
 
@@ -535,8 +535,9 @@ class Bar(Window):
             GLib.timeout_add(1000, self._position_rail_initially, active_button)
         else:
             if self.is_animating_rail:
-                self._animation_queue.append(
-                    (self._update_rail_with_animation, active_button)
+                self._animation_queue = (
+                    self._update_rail_with_animation,
+                    active_button,
                 )
             else:
                 self.is_animating_rail = True
@@ -609,7 +610,7 @@ class Bar(Window):
         stretched_size = self.current_rail_size + abs(distance)
         stretch_pos = target_pos if distance < 0 else self.current_rail_pos
 
-        decimator = len(self._animation_queue) + 1
+        decimator = 3 if self._animation_queue else 1
         stretch_duration = 0.1 / decimator
         shrink_duration = 0.15 / decimator
 
@@ -672,10 +673,11 @@ class Bar(Window):
 
     def _trigger_pending_animations(self):
         if self._animation_queue:
-            next_anim = self._animation_queue.pop(0)
-            GLib.idle_add(*next_anim)
+            GLib.idle_add(*self._animation_queue)
+            self._animation_queue = None
             return True
         else:
+            self.animation_queue = None
             self.is_animating_rail = False
         return False
 
@@ -828,4 +830,3 @@ class Bar(Window):
             self.bar_inner.add_style_class("hidden")
         else:
             self.bar_inner.remove_style_class("hidden")
-
