@@ -50,6 +50,7 @@ tooltip_power = """<b>Power Menu</b>"""
 tooltip_tools = """<b>Toolbox</b>"""
 tooltip_overview = """<b>Overview</b>"""
 
+
 def build_caption(i: int, start_workspace: int):
     """Build the label for a given workspace number"""
     label = data.BAR_WORKSPACE_ICONS.get(str(i)) or data.BAR_WORKSPACE_ICONS.get(
@@ -60,7 +61,7 @@ def build_caption(i: int, start_workspace: int):
             CHINESE_NUMERALS[(i - start_workspace)]
             if data.BAR_WORKSPACE_USE_CHINESE_NUMERALS
             and 0 <= (i - start_workspace) < len(CHINESE_NUMERALS)
-            else str(i)
+            else (str(i) if data.BAR_WORKSPACE_SHOW_NUMBER else "")
         )
     else:
         return label
@@ -69,7 +70,7 @@ def build_caption(i: int, start_workspace: int):
 class Bar(Window):
     def __init__(self, monitor_id: int = 0, **kwargs):
         self.monitor_id = monitor_id
-        
+
         super().__init__(
             name="bar",
             layer="top",
@@ -79,7 +80,7 @@ class Bar(Window):
             monitor=monitor_id,
         )
 
-        self._animation_queue = []
+        self._animation_queue: list[tuple] = []
         self.anchor_var = ""
         self.margin_var = ""
 
@@ -126,33 +127,7 @@ class Bar(Window):
         end_workspace = data.BAR_WORKSPACE_END
         workspace_range = range(start_workspace, end_workspace + 1)
 
-        self.workspaces = Workspaces(
-            name="workspaces",
-            invert_scroll=True,
-            empty_scroll=True,
-            v_align="fill",
-            orientation="h" if not data.VERTICAL else "v",
-            spacing=8,
-            buttons=[
-                WorkspaceButton(
-                    h_expand=False,
-                    v_expand=False,
-                    h_align="center",
-                    v_align="center",
-                    id=i,
-                    label=None,
-                    style_classes=["vertical"] if data.VERTICAL else None,
-                )
-                for i in workspace_range
-            ],
-            buttons_factory=(
-                None
-                if data.BAR_HIDE_SPECIAL_WORKSPACE
-                else Workspaces.default_buttons_factory
-            ),
-        )
-
-        self.workspaces_num = Workspaces(
+        self.workspaces_labeled = Workspaces(
             name="workspaces-num",
             invert_scroll=True,
             empty_scroll=True,
@@ -186,17 +161,10 @@ class Bar(Window):
             self.ws_rail_provider, Gtk.STYLE_PROVIDER_PRIORITY_USER
         )
 
-        workspaces_widget = (
-            self.workspaces_num
-            if data.BAR_WORKSPACE_SHOW_NUMBER or data.BAR_WORKSPACE_ICONS
-            else self.workspaces
-        )
-
         self.ws_container = Gtk.Grid()
         self.ws_container.attach(self.ws_rail, 0, 0, 1, 1)
-        self.ws_container.attach(workspaces_widget, 0, 0, 1, 1)
+        self.ws_container.attach(self.workspaces_labeled, 0, 0, 1, 1)
         self.ws_container.set_name("workspaces-container")
-
 
         self.button_tools = Button(
             name="button-bar",
@@ -374,11 +342,10 @@ class Bar(Window):
         self.v_all_children.extend(self.v_end_children)
 
         # Create embedded dock when bar is in center position (regardless of DOCK_ENABLED setting)
-        should_embed_dock = (
-            data.BAR_POSITION == "Bottom"
-            or (data.PANEL_THEME == "Panel" and data.BAR_POSITION in ["Top", "Bottom"])
+        should_embed_dock = data.BAR_POSITION == "Bottom" or (
+            data.PANEL_THEME == "Panel" and data.BAR_POSITION in ["Top", "Bottom"]
         )
-        
+
         if should_embed_dock:
             if not data.VERTICAL:
                 self.dock_instance = Dock(integrated_mode=True)
@@ -522,7 +489,6 @@ class Bar(Window):
             self.bar_inner.add_style_class("vertical")
 
         self.systray._update_visibility()
-        self.chinese_numbers()
         self.setup_workspaces()
 
     def setup_workspaces(self):
@@ -569,7 +535,9 @@ class Bar(Window):
             GLib.timeout_add(1000, self._position_rail_initially, active_button)
         else:
             if self.is_animating_rail:
-                self._animation_queue.append((self._update_rail_with_animation, active_button))
+                self._animation_queue.append(
+                    (self._update_rail_with_animation, active_button)
+                )
             else:
                 self.is_animating_rail = True
                 GLib.idle_add(self._update_rail_with_animation, active_button)
@@ -595,7 +563,7 @@ class Bar(Window):
             """
         else:
             self.current_rail_pos = (
-                allocation.x + (allocation.width / 2) - (diameter / 2)
+                1 + allocation.x + (allocation.width / 2) - (diameter / 2)
             )
             self.current_rail_size = diameter
             css = f"""
@@ -630,7 +598,7 @@ class Bar(Window):
         else:
             pos_prop, size_prop = "margin-left", "min-width"
             target_pos = (
-                target_allocation.x + (target_allocation.width / 2) - (diameter / 2)
+                1 + target_allocation.x + (target_allocation.width / 2) - (diameter / 2)
             )
 
         if target_pos == self.current_rail_pos:
@@ -861,8 +829,3 @@ class Bar(Window):
         else:
             self.bar_inner.remove_style_class("hidden")
 
-    def chinese_numbers(self):
-        if data.BAR_WORKSPACE_USE_CHINESE_NUMERALS or data.BAR_WORKSPACE_ICONS:
-            self.workspaces_num.add_style_class("chinese")
-        else:
-            self.workspaces_num.remove_style_class("chinese")
