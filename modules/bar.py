@@ -518,68 +518,32 @@ class Bar(Window):
         """Update the workspace rail position based on the workspace button"""
         logger.info(f"Updating rail for workspace {workspace_id}")
         workspaces = self.children_workspaces
-        active_button = next(
+        active_workspace = next(
             (
                 b
                 for b in workspaces
                 if isinstance(b, WorkspaceButton) and b.id == workspace_id
             ),
-            None,
         )
 
-        if not active_button:
+        if not active_workspace:
             logger.warning(f"No button found for workspace {workspace_id}")
             return
 
         if initial_setup:
-            GLib.timeout_add(1000, self._position_rail_initially, active_button)
+            active_workspace.connect(
+                "size-allocate",
+                lambda: self._update_rail_with_animation(active_workspace),
+            )
         else:
             if self.is_animating_rail:
                 self._animation_queue = (
                     self._update_rail_with_animation,
-                    active_button,
+                    active_workspace,
                 )
             else:
                 self.is_animating_rail = True
-                GLib.idle_add(self._update_rail_with_animation, active_button)
-
-    def _position_rail_initially(self, active_button):
-        allocation = active_button.get_allocation()
-        if allocation.width == 0 or allocation.height == 0:
-            return True
-
-        diameter = 24
-        if data.VERTICAL:
-            self.current_rail_pos = (
-                allocation.y + (allocation.height / 2) - (diameter / 2)
-            )
-            self.current_rail_size = diameter
-            css = f"""
-            #workspace-rail {{
-                transition-property: none;
-                margin-top: {self.current_rail_pos}px;
-                min-height: {self.current_rail_size}px;
-                min-width: {self.current_rail_size}px;
-            }}
-            """
-        else:
-            self.current_rail_pos = (
-                1 + allocation.x + (allocation.width / 2) - (diameter / 2)
-            )
-            self.current_rail_size = diameter
-            css = f"""
-            #workspace-rail {{
-                transition-property: none;
-                margin-left: {self.current_rail_pos}px;
-                min-width: {self.current_rail_size}px;
-                min-height: {self.current_rail_size}px;
-            }}
-            """
-        self.ws_rail_provider.load_from_data(css.encode())
-        logger.info(
-            f"Rail initialized at pos={self.current_rail_pos}, size={self.current_rail_size}"
-        )
-        return False
+                GLib.idle_add(self._update_rail_with_animation, active_workspace)
 
     def _update_rail_with_animation(self, active_button):
         """Position the rail at the active workspace button with a stretch animation."""
@@ -588,7 +552,8 @@ class Bar(Window):
         if target_allocation.width == 0 or target_allocation.height == 0:
             logger.info("Button allocation not ready, retrying...")
             self.is_animating_rail = False
-            return True
+            self._trigger_pending_animations()
+            return False
 
         diameter = 24
         if data.VERTICAL:
@@ -610,9 +575,8 @@ class Bar(Window):
         stretched_size = self.current_rail_size + abs(distance)
         stretch_pos = target_pos if distance < 0 else self.current_rail_pos
 
-        decimator = 3 if self._animation_queue else 1
-        stretch_duration = 0.1 / decimator
-        shrink_duration = 0.15 / decimator
+        stretch_duration = 0.1
+        shrink_duration = 0.15
 
         reduced_diameter = max(2, int(diameter - abs(distance / 10.0)))
 
