@@ -23,15 +23,19 @@ from utils.icon_resolver import IconResolver
 from utils.occlusion import check_occlusion
 from widgets.wayland import WaylandWindow as Window
 
+from fabric.widgets.button import Button
+from fabric.widgets.flowbox import FlowBox
+
 
 class Notch(Window):
     def __init__(self, monitor_id: int = 0, **kwargs):
         self.monitor_id = monitor_id
         self.monitor_manager = None
-        
+
         # Get monitor manager
         try:
             from utils.monitor_manager import get_monitor_manager
+
             self.monitor_manager = get_monitor_manager()
         except ImportError:
             pass
@@ -184,7 +188,7 @@ class Notch(Window):
             h_expand=True,
             h_align="fill",
             formatter=FormattedString(
-                f"{{'Desktop' if not win_title or win_title == 'unknown' else win_title}}",
+                "{'Desktop' if not win_title or win_title == 'unknown' else win_title}",
             ),
         )
 
@@ -340,7 +344,7 @@ class Notch(Window):
             child_revealed=True,
             child=self.notch_box,
         )
-        
+
         self.notch_revealer.set_size_request(-1, 1)
 
         self.notch_complete = Box(
@@ -358,18 +362,18 @@ class Notch(Window):
                 "Dense": 50,
                 "Edge": 44,
             }.get(data.BAR_THEME, 38)
-            
+
             if is_panel_vertical:
                 vert_comp_size = 1
-                
+
             self.vert_comp_left = Box(name="vert-comp")
             self.vert_comp_left.set_size_request(vert_comp_size, 0)
             self.vert_comp_left.set_sensitive(False)
-            
-            self.vert_comp_right = Box(name="vert-comp") 
+
+            self.vert_comp_right = Box(name="vert-comp")
             self.vert_comp_right.set_size_request(vert_comp_size, 0)
             self.vert_comp_right.set_sensitive(False)
-            
+
             self.notch_children = [
                 self.vert_comp_left,
                 self.notch_complete,
@@ -389,7 +393,9 @@ class Notch(Window):
             self.hover_eventbox.add(self.notch_wrap)
             self.hover_eventbox.set_visible(True)
             # Set minimum size to ensure hover detection area is always available
-            self.hover_eventbox.set_size_request(260, 4)  # Width matches compact size, min height for hover
+            self.hover_eventbox.set_size_request(
+                260, 4
+            )  # Width matches compact size, min height for hover
             self.hover_eventbox.add_events(
                 Gdk.EventMask.ENTER_NOTIFY_MASK | Gdk.EventMask.LEAVE_NOTIFY_MASK
             )
@@ -470,7 +476,7 @@ class Notch(Window):
         # Update monitor manager state
         if self.monitor_manager:
             self.monitor_manager.set_notch_state(self.monitor_id, False)
-            
+
         self.set_keyboard_mode("none")
         self.notch_box.remove_style_class("open")
         self.stack.remove_style_class("open")
@@ -485,70 +491,81 @@ class Notch(Window):
 
     def open_notch(self, widget_name: str):
         # Debug info for troubleshooting
-        if hasattr(self, '_debug_monitor_focus') and self._debug_monitor_focus:
-            print(f"DEBUG: open_notch called on monitor {self.monitor_id} for widget '{widget_name}'")
-        
+        if hasattr(self, "_debug_monitor_focus") and self._debug_monitor_focus:
+            print(
+                f"DEBUG: open_notch called on monitor {self.monitor_id} for widget '{widget_name}'"
+            )
+
         # Handle monitor focus switching - always check real focused monitor from Hyprland
         if self.monitor_manager:
             # Get real focused monitor directly from Hyprland to ensure accuracy
             real_focused_monitor_id = self._get_real_focused_monitor_id()
-            
+
             # Update monitor manager if we got a valid result
             if real_focused_monitor_id is not None:
                 # Update the monitor manager's focused monitor
                 self.monitor_manager._focused_monitor_id = real_focused_monitor_id
-                if hasattr(self, '_debug_monitor_focus') and self._debug_monitor_focus:
-                    print(f"DEBUG: Real focused monitor from Hyprland: {real_focused_monitor_id}")
-            
+                if hasattr(self, "_debug_monitor_focus") and self._debug_monitor_focus:
+                    print(
+                        f"DEBUG: Real focused monitor from Hyprland: {real_focused_monitor_id}"
+                    )
+
             focused_monitor_id = self.monitor_manager.get_focused_monitor_id()
-            
+
             if focused_monitor_id != self.monitor_id:
                 # Close this notch and open on focused monitor
-                if hasattr(self, '_debug_monitor_focus') and self._debug_monitor_focus:
-                    print(f"DEBUG: Redirecting from monitor {self.monitor_id} to focused monitor {focused_monitor_id}")
-                
+                if hasattr(self, "_debug_monitor_focus") and self._debug_monitor_focus:
+                    print(
+                        f"DEBUG: Redirecting from monitor {self.monitor_id} to focused monitor {focused_monitor_id}"
+                    )
+
                 self.close_notch()
-                focused_notch = self.monitor_manager.get_instance(focused_monitor_id, 'notch')
-                if focused_notch and hasattr(focused_notch, 'open_notch'):
+                focused_notch = self.monitor_manager.get_instance(
+                    focused_monitor_id, "notch"
+                )
+                if focused_notch and hasattr(focused_notch, "open_notch"):
                     # Recursively call open_notch on the correct monitor instance
                     focused_notch._open_notch_internal(widget_name)
                 return
-            
+
             # Close notches on other monitors
             self.monitor_manager.close_all_notches_except(self.monitor_id)
             self.monitor_manager.set_notch_state(self.monitor_id, True, widget_name)
-        
+
         # Call internal open_notch implementation
         self._open_notch_internal(widget_name)
-    
+
     def _get_real_focused_monitor_id(self):
         """Get the real focused monitor ID directly from Hyprland."""
         try:
             import json
             import subprocess
-            
+
             # Get focused monitor from Hyprland
             result = subprocess.run(
                 ["hyprctl", "monitors", "-j"],
                 capture_output=True,
                 text=True,
                 check=True,
-                timeout=2.0
+                timeout=2.0,
             )
-            
+
             monitors = json.loads(result.stdout)
             for i, monitor in enumerate(monitors):
-                if monitor.get('focused', False):
+                if monitor.get("focused", False):
                     return i
-                    
-        except (subprocess.CalledProcessError, json.JSONDecodeError, 
-                FileNotFoundError, subprocess.TimeoutExpired) as e:
+
+        except (
+            subprocess.CalledProcessError,
+            json.JSONDecodeError,
+            FileNotFoundError,
+            subprocess.TimeoutExpired,
+        ) as e:
             print(f"Warning: Could not get focused monitor from Hyprland: {e}")
-        
+
         return None
-    
+
     def _open_notch_internal(self, widget_name: str):
-        
         self.notch_revealer.set_reveal_child(True)
         self.notch_box.add_style_class("open")
         self.stack.add_style_class("open")
@@ -1056,3 +1073,82 @@ class Notch(Window):
                 return True
 
         return False
+
+    def show_menu(self, title, options, callback=None, icon_name="system-run"):
+        """Show a menu in the notch with the given options and callback.
+
+        Args:
+            title: Title string to display at the top of the menu
+            options: List of tuples in format [(caption, value), ...]
+            callback: Function to call with selected value
+            icon_name: Optional icon name to display in the menu header
+        """
+
+        # Create a temporary menu container
+        menu_container = Box(name="notch-custom-menu", orientation="v")
+
+        # Create header with title
+        header = Box(name="notch-custom-menu-header", orientation="h")
+        header_icon = Image(
+            name="notch-custom-menu-icon", icon_name=icon_name, icon_size=24
+        )
+        header_title = Label(
+            name="notch-custom-menu-title", label=title, h_align="center", h_expand=True
+        )
+        header.add(header_icon)
+        header.add(header_title)
+        menu_container.add(header)
+
+        # Create flow box for options
+        options_box = FlowBox(
+            name="notch-custom-menu-options", orientation="h", min_children_per_line=1
+        )
+
+        # Add each option as a button
+        for caption, value in options:
+            option_button = Button(name="notch-custom-menu-option", label=caption)
+            option_button.connect(
+                "clicked",
+                lambda _, val=value: self._on_menu_option_selected(val, callback),
+            )
+            options_box.add(option_button)
+
+        # Wrap options in scrollable if there are many
+        if len(options) > 10:
+            scrolled = Gtk.ScrolledWindow(name="notch-custom-menu-scroll")
+            scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+            scrolled.add(options_box)
+            menu_container.add(scrolled)
+        else:
+            menu_container.add(options_box)
+
+        # Add to stack, show and ensure keyboard focus
+        self.stack.add(menu_container)
+        self.open_notch("custom_menu")
+        self.stack.set_visible_child(menu_container)
+
+        # Return the container for further reference if needed
+        return menu_container
+
+    def _on_menu_option_selected(self, value, callback):
+        """Handle selection of a menu option."""
+        # Close the notch
+        self.close_notch()
+
+        # Call the callback with the selected value
+        if callback and callable(callback):
+            callback(value)
+
+
+"""
+
+my_notch.show_menu(
+    "Select an option",
+    [
+        ("Option 1", "value1"),
+        ("Option 2", "value2"),
+        ("Option 3", "value3")
+    ],
+    lambda selected_value: print(f"Selected: {selected_value}")
+)
+"""
