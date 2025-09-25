@@ -46,13 +46,14 @@
 
 > [!NOTE]
 > You need a functioning Hyprland installation.
+> This will also enable NetworkManager if it is not already enabled.
 
 ### Arch Linux
 
 > [!TIP]
 > This command also works for updating an existing installation!
 
-
+**Run the following command in your terminal once logged into Hyprland:**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Axenide/Ax-Shell/main/install.sh | bash
 ```
@@ -77,19 +78,24 @@ curl -fsSL https://raw.githubusercontent.com/Axenide/Ax-Shell/main/install.sh | 
     - `hyprsunset`
     - `imagemagick`
     - `libnotify`
+    - `networkmanager`
+    - `network-manager-applet`
+    - `nm-connection-editor`
     - `noto-fonts-emoji`
     - `nvtop`
     - `playerctl`
     - `swappy`
     - `swww`
     - `tesseract`
+    - `tesseract-data-eng`
+    - `tesseract-data-spa`
     - `tmux`
+    - `unzip`
     - `upower`
     - `uwsm`
     - `vte3`
     - `webp-pixbuf-loader`
     - `wl-clipboard`
-    - `wlinhibit`
     - Python dependencies:
         - PyGObject
         - ijson
