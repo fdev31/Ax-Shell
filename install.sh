@@ -22,6 +22,9 @@ PACKAGES=(
   imagemagick
   libnotify
   matugen-bin
+  network-manager-applet
+  networkmanager
+  nm-connection-editor
   noto-fonts-emoji
   nvtop
   playerctl
@@ -107,6 +110,10 @@ if [ ! -d "$FONT_DIR" ]; then
 else
     echo "Fonts are already installed. Skipping download and extraction."
 fi
+
+sudo systemctl disable --now iwd
+sudo systemctl enable NetworkManager
+sudo systemctl start NetworkManager
 
 # Copy local fonts if not already present
 if [ ! -d "$HOME/.fonts/tabler-icons" ]; then
