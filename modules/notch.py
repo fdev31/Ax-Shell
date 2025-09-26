@@ -1133,6 +1133,9 @@ class Notch(Window):
         # Create a temporary menu container
         menu_container = Box(name="notch-custom-menu", orientation="v")
 
+        # Apply CSS styling
+        self._apply_menu_styling()
+
         # Create header with title
         header = Box(name="notch-custom-menu-header", orientation="h")
         header_icon = Image(
@@ -1184,6 +1187,55 @@ class Notch(Window):
         # Call the callback with the selected value
         if callback and callable(callback):
             callback(value)
+
+    def _apply_menu_styling(self):
+        """Apply CSS styling to the menu widgets"""
+        css_provider = Gtk.CssProvider()
+        css = """
+            #notch-custom-menu {
+                background-color: #2d2d2d;
+                border-radius: 6px;
+                padding: 8px;
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+            }
+
+            #notch-custom-menu-header {
+                padding: 6px;
+                border-bottom: 1px solid #3d3d3d;
+                margin-bottom: 6px;
+            }
+
+            #notch-custom-menu-title {
+                font-size: 14px;
+                font-weight: bold;
+                color: #ffffff;
+                margin: 0 10px;
+            }
+
+            #notch-custom-menu-option {
+                padding: 8px 16px;
+                margin: 2px;
+                border-radius: 4px;
+                background-color: #3d3d3d;
+                color: #ffffff;
+                font-size: 13px;
+            }
+
+            #notch-custom-menu-option:hover {
+                background-color: #4d4d4d;
+            }
+
+            #notch-custom-menu-scroll {
+                min-height: 200px;
+                max-height: 400px;
+            }
+        """
+        css_provider.load_from_data(css.encode())
+        Gtk.StyleContext.add_provider_for_screen(
+            Gdk.Screen.get_default(),
+            css_provider,
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
+        )
 
 
 """
