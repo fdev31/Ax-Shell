@@ -1,0 +1,714 @@
+type: Box
+props:
+  orientation: v
+  spacing: 10
+  style: "margin: 10px;"
+id: root_box
+children:
+  - type: Box
+    props:
+      orientation: h
+      spacing: 6
+      v_expand: true
+      h_expand: true
+    id: main_content_box
+    children:
+      - type: StackSwitcher
+        props:
+          orientation: vertical
+        id: tab_switcher
+        stack: tab_stack
+
+      - type: Stack
+        id: tab_stack
+        props:
+          transition_type: "slide-up-down"
+          transition_duration: 250
+          v_expand: true
+          h_expand: true
+        pages:
+          - name: "key_bindings"
+            title: "Key Bindings"
+            content:
+              type: ScrolledWindow
+              props:
+                h_scrollbar_policy: "never"
+                v_scrollbar_policy: "automatic"
+                h_expand: true
+                v_expand: true
+                propagate_width: false
+                propagate_height: false
+              id: key_bindings_tab_content
+              children:
+                - type: Box
+                  props:
+                    orientation: v
+                    spacing: 10
+                    style: "margin: 15px;"
+                  id: keybinding_main_vbox
+                  children:
+                    - type: Grid
+                      id: keybind_grid
+                      props:
+                        column_spacing: 10
+                        row_spacing: 8
+                        margin_start: 5
+                        margin_end: 5
+                        margin_top: 5
+                        margin_bottom: 5
+                      children:
+                        - type: Label
+                          props:
+                            markup: "<b>Action</b>"
+                            h_align: "start"
+                            style: "margin-bottom: 5px;"
+                          grid_position: [0, 0, 1, 1]
+                        - type: Label
+                          props:
+                            markup: "<b>Modifier</b>"
+                            h_align: "start"
+                            style: "margin-bottom: 5px;"
+                          grid_position: [1, 0, 1, 1]
+                        - type: Label
+                          props:
+                            label: "+"
+                            h_align: "center"
+                            style: "margin-bottom: 5px;"
+                          grid_position: [2, 0, 1, 1]
+                        - type: Label
+                          props:
+                            markup: "<b>Key</b>"
+                            h_align: "start"
+                            style: "margin-bottom: 5px;"
+                          grid_position: [3, 0, 1, 1]
+
+          - name: "appearance"
+            title: "Appearance"
+            content:
+              type: ScrolledWindow
+              props:
+                h_scrollbar_policy: "never"
+                v_scrollbar_policy: "automatic"
+                h_expand: true
+                v_expand: true
+                propagate_width: false
+                propagate_height: false
+              id: appearance_tab_content
+              children:
+                - type: Box
+                  props:
+                    orientation: v
+                    spacing: 15
+                    style: "margin: 15px;"
+                  id: appearance_vbox
+                  children:
+                    - type: Grid
+                      id: top_grid
+                      props:
+                        column_spacing: 20
+                        row_spacing: 5
+                        margin_bottom: 10
+                      children:
+                        - type: Label
+                          props:
+                            markup: "<b>Wallpapers</b>"
+                            h_align: "start"
+                          grid_position: [0, 0, 1, 1]
+                        - type: Label
+                          props:
+                            label: "Directory:"
+                            h_align: "start"
+                            v_align: "center"
+                          grid_position: [0, 1, 1, 1]
+                        - type: GtkBox
+                          props:
+                            orientation: "horizontal"
+                            halign: "start"
+                            valign: "center"
+                          grid_position: [1, 1, 1, 1]
+                          children:
+                            - type: FileChooserButton
+                              id: wall_dir_chooser
+                              props:
+                                title: "Select a folder"
+                                action: "select_folder"
+                                tooltip_text: "Select the directory containing your wallpaper images"
+                                width_request: 180
+                        - type: Label
+                          props:
+                            markup: "<b>Profile Icon</b>"
+                            h_align: "start"
+                          grid_position: [2, 0, 2, 1]
+                        - type: Box
+                          props:
+                            style_classes: ["image-frame"]
+                            h_align: "center"
+                            v_align: "center"
+                          grid_position: [2, 1, 1, 1]
+                          children:
+                            - type: FabricImage
+                              id: face_image
+                              props:
+                                size: 64
+                        - type: GtkBox
+                          props:
+                            orientation: "horizontal"
+                            halign: "start"
+                            valign: "center"
+                          grid_position: [3, 1, 1, 1]
+                          children:
+                            - type: Button
+                              id: face_btn
+                              props:
+                                label: "Browse..."
+                                tooltip_text: "Select a square image for your profile icon"
+                              signals:
+                                clicked: on_select_face_icon
+                        - type: Label
+                          id: face_status_label
+                          props:
+                            label: ""
+                            h_align: "start"
+                          grid_position: [2, 2, 2, 1]
+                    - type: Box
+                      props:
+                        style: "min-height: 1px; background-color: alpha(@fg_color, 0.2); margin: 5px 0px;"
+                        h_expand: true
+                    - type: Label
+                      props:
+                        markup: "<b>Date & Time Format</b>"
+                        h_align: "start"
+                    - type: Grid
+                      id: datetime_grid
+                      props:
+                        column_spacing: 20
+                        row_spacing: 10
+                        margin_start: 10
+                        margin_top: 5
+                        margin_bottom: 10
+                      children:
+                        - type: Label
+                          props:
+                            label: "Use 12-Hour Clock"
+                            h_align: "start"
+                            v_align: "center"
+                          grid_position: [0, 0, 1, 1]
+                        - type: GtkBox
+                          props:
+                            orientation: "horizontal"
+                            halign: "start"
+                            valign: "center"
+                          grid_position: [1, 0, 1, 1]
+                          children:
+                            - type: Switch
+                              id: datetime_12h_switch
+                    - type: Label
+                      props:
+                        markup: "<b>Layout Options</b>"
+                        h_align: "start"
+                    - type: Grid
+                      id: layout_grid
+                      props:
+                        column_spacing: 20
+                        row_spacing: 10
+                        margin_start: 10
+                        margin_top: 5
+                      children:
+                        - type: Label
+                          props:
+                            label: "Bar Position"
+                            h_align: "start"
+                            v_align: "center"
+                          grid_position: [0, 0, 1, 1]
+                        - type: GtkBox
+                          props:
+                            orientation: "horizontal"
+                            halign: "start"
+                            valign: "center"
+                          grid_position: [1, 0, 1, 1]
+                          children:
+                            - type: ComboBoxText
+                              id: position_combo
+                              props:
+                                tooltip_text: "Select the position of the bar"
+                                items: ["Top", "Bottom", "Left", "Right"]
+                              signals:
+                                changed: on_position_changed
+                        - type: Label
+                          props:
+                            label: "Centered Bar (Left/Right Only)"
+                            h_align: "start"
+                            v_align: "center"
+                          grid_position: [2, 0, 1, 1]
+                        - type: GtkBox
+                          props:
+                            orientation: "horizontal"
+                            halign: "start"
+                            valign: "center"
+                          grid_position: [3, 0, 1, 1]
+                          children:
+                            - type: Switch
+                              id: centered_switch
+                        - type: Label
+                          props:
+                            label: "Show Dock"
+                            h_align: "start"
+                            v_align: "center"
+                          grid_position: [0, 1, 1, 1]
+                        - type: GtkBox
+                          props:
+                            orientation: "horizontal"
+                            halign: "start"
+                            valign: "center"
+                          grid_position: [1, 1, 1, 1]
+                          children:
+                            - type: Switch
+                              id: dock_switch
+                              signals:
+                                notify::active: on_dock_enabled_changed
+                        - type: Label
+                          props:
+                            label: "Always Show Dock"
+                            h_align: "start"
+                            v_align: "center"
+                          grid_position: [2, 1, 1, 1]
+                        - type: GtkBox
+                          props:
+                            orientation: "horizontal"
+                            halign: "start"
+                            valign: "center"
+                          grid_position: [3, 1, 1, 1]
+                          children:
+                            - type: Switch
+                              id: dock_hover_switch
+                        - type: Label
+                          props:
+                            label: "Dock Icon Size"
+                            h_align: "start"
+                            v_align: "center"
+                          grid_position: [0, 2, 1, 1]
+                        - type: Scale
+                          id: dock_size_scale
+                          props:
+                            min_value: 16
+                            max_value: 48
+                            increments: [2, 4]
+                            draw_value: true
+                            value_position: "right"
+                            digits: 0
+                            h_expand: true
+                          grid_position: [1, 2, 3, 1]
+                        - type: Label
+                          props:
+                            label: "Show Workspace Numbers"
+                            h_align: "start"
+                            v_align: "center"
+                          grid_position: [0, 3, 1, 1]
+                        - type: GtkBox
+                          props:
+                            orientation: "horizontal"
+                            halign: "start"
+                            valign: "center"
+                          grid_position: [1, 3, 1, 1]
+                          children:
+                            - type: Switch
+                              id: ws_num_switch
+                              signals:
+                                notify::active: on_ws_num_changed
+                        - type: Label
+                          props:
+                            label: "Use Chinese Numerals"
+                            h_align: "start"
+                            v_align: "center"
+                          grid_position: [2, 3, 1, 1]
+                        - type: GtkBox
+                          props:
+                            orientation: "horizontal"
+                            halign: "start"
+                            valign: "center"
+                          grid_position: [3, 3, 1, 1]
+                          children:
+                            - type: Switch
+                              id: ws_chinese_switch
+                        - type: Label
+                          props:
+                            label: "Hide Special Workspace"
+                            h_align: "start"
+                            v_align: "center"
+                          grid_position: [0, 4, 1, 1]
+                        - type: GtkBox
+                          props:
+                            orientation: "horizontal"
+                            halign: "start"
+                            valign: "center"
+                          grid_position: [1, 4, 1, 1]
+                          children:
+                            - type: Switch
+                              id: special_ws_switch
+                        - type: Label
+                          props:
+                            label: "Bar Theme"
+                            h_align: "start"
+                            v_align: "center"
+                          grid_position: [0, 5, 1, 1]
+                        - type: GtkBox
+                          props:
+                            orientation: "horizontal"
+                            halign: "start"
+                            valign: "center"
+                          grid_position: [1, 5, 3, 1]
+                          children:
+                            - type: ComboBoxText
+                              id: bar_theme_combo
+                              props:
+                                tooltip_text: "Select the visual theme for the bar"
+                                items: ["Pills", "Dense", "Edge"]
+                        - type: Label
+                          props:
+                            label: "Dock Theme"
+                            h_align: "start"
+                            v_align: "center"
+                          grid_position: [0, 6, 1, 1]
+                        - type: GtkBox
+                          props:
+                            orientation: "horizontal"
+                            halign: "start"
+                            valign: "center"
+                          grid_position: [1, 6, 3, 1]
+                          children:
+                            - type: ComboBoxText
+                              id: dock_theme_combo
+                              props:
+                                tooltip_text: "Select the visual theme for the dock"
+                                items: ["Pills", "Dense", "Edge"]
+                        - type: Label
+                          props:
+                            label: "Panel Theme"
+                            h_align: "start"
+                            v_align: "center"
+                          grid_position: [0, 7, 1, 1]
+                        - type: Box
+                          props:
+                            orientation: "horizontal"
+                            halign: "start"
+                            valign: "center"
+                          grid_position: [1, 7, 1, 1]
+                          children:
+                            - type: ComboBoxText
+                              id: panel_theme_combo
+                              props:
+                                tooltip_text: "Select the theme/mode for panels like toolbox, clipboard, etc."
+                                items: ["Notch", "Panel"]
+                              signals:
+                                changed: _on_panel_theme_changed_for_position_sensitivity
+                        - type: Label
+                          props:
+                            label: "Panel Position"
+                            h_align: "start"
+                            v_align: "center"
+                          grid_position: [2, 7, 1, 1]
+                        - type: Box
+                          props:
+                            orientation: "horizontal"
+                            halign: "start"
+                            valign: "center"
+                          grid_position: [3, 7, 1, 1]
+                          children:
+                            - type: ComboBoxText
+                              id: panel_position_combo
+                              props:
+                                tooltip_text: "Select the position for the 'Panel' theme panels"
+                                items: ["Start", "Center", "End"]
+                        - type: Label
+                          props:
+                            label: "Notification Position"
+                            h_align: "start"
+                            v_align: "center"
+                          grid_position: [0, 8, 1, 1]
+                        - type: Box
+                          props:
+                            orientation: "horizontal"
+                            halign: "start"
+                            valign: "center"
+                          grid_position: [1, 8, 3, 1]
+                          children:
+                            - type: ComboBoxText
+                              id: notification_pos_combo
+                              props:
+                                tooltip_text: "Select where notifications appear on the screen."
+                                items: ["Top", "Bottom"]
+                              signals:
+                                changed: on_notification_position_changed
+                    - type: Box
+                      props:
+                        style: "min-height: 1px; background-color: alpha(@fg_color, 0.2); margin: 5px 0px;"
+                        h_expand: true
+                    - type: Label
+                      props:
+                        markup: "<b>Modules</b>"
+                        h_align: "start"
+                    - type: Grid
+                      id: components_grid
+                      props:
+                        column_spacing: 15
+                        row_spacing: 8
+                        margin_start: 10
+                        margin_top: 5
+                      children:
+                        - type: Label
+                          props:
+                            label: "Rounded Corners"
+                            h_align: "start"
+                            v_align: "center"
+                          grid_position: [0, 0, 1, 1]
+                        - type: GtkBox
+                          props:
+                            orientation: "horizontal"
+                            halign: "start"
+                            valign: "center"
+                          grid_position: [1, 0, 1, 1]
+                          children:
+                            - type: Switch
+                              id: corners_switch
+
+          - name: "system"
+            title: "System"
+            content:
+              type: ScrolledWindow
+              props:
+                h_scrollbar_policy: "never"
+                v_scrollbar_policy: "automatic"
+                h_expand: true
+                v_expand: true
+                propagate_width: false
+                propagate_height: false
+              id: system_tab_content
+              children:
+                - type: Box
+                  props:
+                    orientation: v
+                    spacing: 15
+                    style: "margin: 15px;"
+                  id: system_vbox
+                  children:
+                    - type: Grid
+                      id: system_grid
+                      props:
+                        column_spacing: 20
+                        row_spacing: 10
+                        margin_bottom: 15
+                      children:
+                        - type: Label
+                          props:
+                            label: "Auto-append to hyprland.conf"
+                            h_align: "start"
+                            v_align: "center"
+                          grid_position: [0, 0, 1, 1]
+                        - type: GtkBox
+                          props:
+                            orientation: "horizontal"
+                            halign: "start"
+                            valign: "center"
+                          grid_position: [1, 0, 1, 1]
+                          children:
+                            - type: Switch
+                              id: auto_append_switch
+                              props:
+                                tooltip_text: "Automatically append Ax-Shell source string to hyprland.conf"
+                        - type: Label
+                          props:
+                            markup: "<b>Monitor Selection</b>"
+                            h_align: "start"
+                          grid_position: [0, 1, 2, 1]
+                        - type: Label
+                          props:
+                            label: "Show Ax-Shell on monitors:"
+                            h_align: "start"
+                            v_align: "center"
+                          grid_position: [0, 2, 1, 1]
+                        - type: Box
+                          id: monitor_selection_container
+                          props:
+                            orientation: "v"
+                            spacing: 5
+                            h_align: "start"
+                          grid_position: [1, 2, 1, 1]
+                        - type: Label
+                          props:
+                            markup: "<b>Terminal Settings</b>"
+                            h_align: "start"
+                          grid_position: [0, 3, 2, 1]
+                        - type: Label
+                          props:
+                            label: "Command:"
+                            h_align: "start"
+                            v_align: "center"
+                          grid_position: [0, 4, 1, 1]
+                        - type: Entry
+                          id: terminal_entry
+                          props:
+                            tooltip_text: "Command used to launch terminal apps (e.g., 'kitty -e')"
+                            h_expand: true
+                          grid_position: [1, 4, 1, 1]
+                        - type: Label
+                          props:
+                            markup: "<small>Examples: 'kitty -e', 'alacritty -e', 'foot -e'</small>"
+                            h_align: "start"
+                          grid_position: [0, 5, 2, 1]
+                        - type: Label
+                          props:
+                            markup: "<b>Hyprland Integration</b>"
+                            h_align: "start"
+                          grid_position: [2, 3, 2, 1]
+                    - type: Label
+                      props:
+                        markup: "<b>Notification Settings</b>"
+                        h_align: "start"
+                    - type: Grid
+                      id: notif_grid
+                      props:
+                        column_spacing: 20
+                        row_spacing: 10
+                        margin_start: 10
+                        margin_top: 5
+                        margin_bottom: 15
+                      children:
+                        - type: Label
+                          props:
+                            label: "Limited Apps History:"
+                            h_align: "start"
+                            v_align: "center"
+                          grid_position: [0, 0, 1, 1]
+                        - type: Entry
+                          id: limited_apps_entry
+                          props:
+                            tooltip_text: 'Enter app names separated by commas, e.g: "Spotify", "Discord"'
+                            h_expand: true
+                          grid_position: [1, 0, 1, 1]
+                        - type: Label
+                          props:
+                            markup: '<small>Apps with limited notification history (format: "App1", "App2")</small>'
+                            h_align: "start"
+                          grid_position: [0, 1, 2, 1]
+                        - type: Label
+                          props:
+                            label: "History Ignored Apps:"
+                            h_align: "start"
+                            v_align: "center"
+                          grid_position: [0, 2, 1, 1]
+                        - type: Entry
+                          id: ignored_apps_entry
+                          props:
+                            tooltip_text: 'Enter app names separated by commas, e.g: "Hyprshot", "Screenshot"'
+                            h_expand: true
+                          grid_position: [1, 2, 1, 1]
+                        - type: Label
+                          props:
+                            markup: '<small>Apps whose notifications are ignored in history (format: "App1", "App2")</small>'
+                            h_align: "start"
+                          grid_position: [0, 3, 2, 1]
+                    - type: Label
+                      props:
+                        markup: "<b>System Metrics Options</b>"
+                        h_align: "start"
+                    - type: Grid
+                      id: metrics_grid
+                      props:
+                        column_spacing: 15
+                        row_spacing: 8
+                        margin_start: 10
+                        margin_top: 5
+                    - type: Label
+                      props:
+                        label: "Disk directories for Metrics"
+                        h_align: "start"
+                        v_align: "center"
+                    - type: Box
+                      id: disk_entries
+                      props:
+                        orientation: "v"
+                        spacing: 8
+                        h_align: "start"
+                    - type: GtkBox
+                      props:
+                        orientation: "horizontal"
+                        halign: "start"
+                        valign: "center"
+                      children:
+                        - type: Button
+                          id: add_disk_btn
+                          props:
+                            label: "Add new disk"
+                          signals:
+                            clicked: on_add_disk_entry
+
+          - name: "about"
+            title: "About"
+            content:
+              type: Box
+              props:
+                orientation: v
+                spacing: 18
+                style: "margin: 30px;"
+              id: about_tab_content
+              children:
+                - type: Label
+                  props:
+                    markup: "<b>Ax-Shell</b>"
+                    h_align: "start"
+                    style: "font-size: 1.5em; margin-bottom: 8px;"
+                - type: Label
+                  props:
+                    label: "A hackable shell for Hyprland, powered by Fabric."
+                    h_align: "start"
+                    style: "margin-bottom: 12px;"
+                - type: Box
+                  props:
+                    orientation: h
+                    spacing: 6
+                    h_align: "start"
+                  children:
+                    - type: Label
+                      props:
+                        label: "GitHub:"
+                        h_align: "start"
+                    - type: Label
+                      props:
+                        markup: '<a href="https://github.com/Axenide/Ax-Shell">https://github.com/Axenide/Ax-Shell</a>'
+                - type: Button
+                  id: kofi_btn
+                  props:
+                    label: "Support on Ko-Fi ❤️"
+                    tooltip_text: "Support Axenide on Ko-Fi"
+                    style: "margin-top: 18px; min-width: 160px;"
+                  signals:
+                    clicked: on_kofi_clicked
+                - type: Box
+                  props:
+                    v_expand: true
+
+  - type: Box
+    props:
+      orientation: h
+      spacing: 10
+      h_align: "end"
+    id: button_box
+    children:
+      - type: Button
+        props:
+          label: "Reset to Defaults"
+        id: reset_btn
+        signals:
+          clicked: on_reset
+      - type: Button
+        props:
+          label: "Close"
+        id: close_btn
+        signals:
+          clicked: on_close
+      - type: Button
+        props:
+          label: "Apply & Reload"
+        id: accept_btn
+        signals:
+          clicked: on_accept
