@@ -111,9 +111,32 @@ else
     echo "Fonts are already installed. Skipping download and extraction."
 fi
 
-sudo systemctl disable --now iwd
-sudo systemctl enable NetworkManager
-sudo systemctl start NetworkManager
+# Network services handling
+echo "Configuring network services..."
+
+# Disable iwd if enabled/active
+if systemctl is-enabled --quiet iwd 2>/dev/null || systemctl is-active --quiet iwd 2>/dev/null; then
+    echo "Disabling iwd..."
+    sudo systemctl disable --now iwd
+else
+    echo "iwd is already disabled."
+fi
+
+# Enable NetworkManager if not enabled
+if ! systemctl is-enabled --quiet NetworkManager 2>/dev/null; then
+    echo "Enabling NetworkManager..."
+    sudo systemctl enable NetworkManager
+else
+    echo "NetworkManager is already enabled."
+fi
+
+# Start NetworkManager if not running
+if ! systemctl is-active --quiet NetworkManager 2>/dev/null; then
+    echo "Starting NetworkManager..."
+    sudo systemctl start NetworkManager
+else
+    echo "NetworkManager is already running."
+fi
 
 # Copy local fonts if not already present
 if [ ! -d "$HOME/.fonts/tabler-icons" ]; then
