@@ -1,7 +1,9 @@
 import json
 import os
+import shutil
 import subprocess
 import time
+from pathlib import Path
 
 import gi
 
@@ -11,10 +13,11 @@ from fabric.widgets.button import Button
 from fabric.widgets.entry import Entry
 from fabric.widgets.image import Image as FabricImage
 from fabric.widgets.label import Label
+from fabric.widgets.scale import Scale
 from fabric.widgets.scrolledwindow import ScrolledWindow
 from fabric.widgets.stack import Stack
 from fabric.widgets.window import Window
-from gi.repository import GdkPixbuf, GLib, Gtk, Gdk
+from gi.repository import GdkPixbuf, GLib, Gtk
 from PIL import Image
 
 from .data import (
@@ -26,7 +29,6 @@ from .data import (
     PANEL_POSITION_KEY,
 )
 from .settings_utils import backup_and_replace, bind_vars, start_config
-from .fabric_declarative import FabricUIBuilder
 
 
 class HyprConfGUI(Window):
@@ -44,22 +46,24 @@ class HyprConfGUI(Window):
         self.show_lock_checkbox = show_lock_checkbox
         self.show_idle_checkbox = show_idle_checkbox
 
-        # Initialize UI builder
-        self.builder = FabricUIBuilder(self)
+        root_box = Box(orientation="v", spacing=10, style="margin: 10px;")
+        self.add(root_box)
 
-        # Load base UI structure from YAML
-        yaml_path = os.path.join(os.path.dirname(__file__), "settings_gui.yaml")
-        self.root_box = self.builder.load_from_yaml(yaml_path)
-        self.add(self.root_box)
+        main_content_box = Box(orientation="h", spacing=6, v_expand=True, h_expand=True)
+        root_box.add(main_content_box)
 
-        # Create tab contents
+        self.tab_stack = Stack(
+            transition_type="slide-up-down",
+            transition_duration=250,
+            v_expand=True,
+            h_expand=True,
+        )
+
         self.key_bindings_tab_content = self.create_key_bindings_tab()
         self.appearance_tab_content = self.create_appearance_tab()
         self.system_tab_content = self.create_system_tab()
         self.about_tab_content = self.create_about_tab()
 
-        # Add tabs to stack
-        self.tab_stack = self.builder.get_widget("tab_stack")
         self.tab_stack.add_titled(
             self.key_bindings_tab_content, "key_bindings", "Key Bindings"
         )
@@ -69,8 +73,59 @@ class HyprConfGUI(Window):
         self.tab_stack.add_titled(self.system_tab_content, "system", "System")
         self.tab_stack.add_titled(self.about_tab_content, "about", "About")
 
+        tab_switcher = Gtk.StackSwitcher()
+        tab_switcher.set_stack(self.tab_stack)
+        tab_switcher.set_orientation(Gtk.Orientation.VERTICAL)
+        main_content_box.add(tab_switcher)
+        main_content_box.add(self.tab_stack)
+
+        button_box = Box(orientation="h", spacing=10, h_align="end")
+        reset_btn = Button(label="Reset to Defaults", on_clicked=self.on_reset)
+        button_box.add(reset_btn)
+        close_btn = Button(label="Close", on_clicked=self.on_close)
+        button_box.add(close_btn)
+        accept_btn = Button(label="Apply & Reload", on_clicked=self.on_accept)
+        button_box.add(accept_btn)
+        root_box.add(button_box)
+
     def create_key_bindings_tab(self):
-        keybind_grid = self.builder.get_widget("keybind_grid")
+        scrolled_window = ScrolledWindow(
+            h_scrollbar_policy="never",
+            v_scrollbar_policy="automatic",
+            h_expand=True,
+            v_expand=True,
+            propagate_width=False,
+            propagate_height=False,
+        )
+
+        main_vbox = Box(orientation="v", spacing=10, style="margin: 15px;")
+        scrolled_window.add(main_vbox)
+
+        keybind_grid = Gtk.Grid()
+        keybind_grid.set_column_spacing(10)
+        keybind_grid.set_row_spacing(8)
+        keybind_grid.set_margin_start(5)
+        keybind_grid.set_margin_end(5)
+        keybind_grid.set_margin_top(5)
+        keybind_grid.set_margin_bottom(5)
+
+        action_label = Label(
+            markup="<b>Action</b>", h_align="start", style="margin-bottom: 5px;"
+        )
+        modifier_label = Label(
+            markup="<b>Modifier</b>", h_align="start", style="margin-bottom: 5px;"
+        )
+        separator_label = Label(
+            label="+", h_align="center", style="margin-bottom: 5px;"
+        )
+        key_label = Label(
+            markup="<b>Key</b>", h_align="start", style="margin-bottom: 5px;"
+        )
+
+        keybind_grid.attach(action_label, 0, 0, 1, 1)
+        keybind_grid.attach(modifier_label, 1, 0, 1, 1)
+        keybind_grid.attach(separator_label, 2, 0, 1, 1)
+        keybind_grid.attach(key_label, 3, 0, 1, 1)
 
         self.entries = []
         bindings = [
@@ -112,33 +167,54 @@ class HyprConfGUI(Window):
             keybind_grid.attach(suffix_entry, 3, row, 1, 1)
             self.entries.append((prefix_key, suffix_key, prefix_entry, suffix_entry))
 
-        return self.builder.get_widget("key_bindings_tab_content")
+        main_vbox.add(keybind_grid)
+        return scrolled_window
 
     def create_appearance_tab(self):
-        # Get widget references from the builder
-        self.wall_dir_chooser = self.builder.get_widget("wall_dir_chooser")
-        self.face_image = self.builder.get_widget("face_image")
-        self.face_status_label = self.builder.get_widget("face_status_label")
-        self.datetime_12h_switch = self.builder.get_widget("datetime_12h_switch")
-        self.position_combo = self.builder.get_widget("position_combo")
-        self.centered_switch = self.builder.get_widget("centered_switch")
-        self.dock_switch = self.builder.get_widget("dock_switch")
-        self.dock_hover_switch = self.builder.get_widget("dock_hover_switch")
-        self.dock_size_scale = self.builder.get_widget("dock_size_scale")
-        self.ws_num_switch = self.builder.get_widget("ws_num_switch")
-        self.ws_chinese_switch = self.builder.get_widget("ws_chinese_switch")
-        self.special_ws_switch = self.builder.get_widget("special_ws_switch")
-        self.bar_theme_combo = self.builder.get_widget("bar_theme_combo")
-        self.dock_theme_combo = self.builder.get_widget("dock_theme_combo")
-        self.panel_theme_combo = self.builder.get_widget("panel_theme_combo")
-        self.panel_position_combo = self.builder.get_widget("panel_position_combo")
-        self.notification_pos_combo = self.builder.get_widget("notification_pos_combo")
-        components_grid = self.builder.get_widget("components_grid")
+        scrolled_window = ScrolledWindow(
+            h_scrollbar_policy="never",
+            v_scrollbar_policy="automatic",
+            h_expand=True,
+            v_expand=True,
+            propagate_width=False,
+            propagate_height=False,
+        )
 
-        # Populate widgets with data from bind_vars
+        vbox = Box(orientation="v", spacing=15, style="margin: 15px;")
+        scrolled_window.add(vbox)
+
+        top_grid = Gtk.Grid()
+        top_grid.set_column_spacing(20)
+        top_grid.set_row_spacing(5)
+        top_grid.set_margin_bottom(10)
+        vbox.add(top_grid)
+
+        wall_header = Label(markup="<b>Wallpapers</b>", h_align="start")
+        top_grid.attach(wall_header, 0, 0, 1, 1)
+        wall_label = Label(label="Directory:", h_align="start", v_align="center")
+        top_grid.attach(wall_label, 0, 1, 1, 1)
+
+        chooser_container = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        chooser_container.set_halign(Gtk.Align.START)
+        chooser_container.set_valign(Gtk.Align.CENTER)
+        self.wall_dir_chooser = Gtk.FileChooserButton(
+            title="Select a folder", action=Gtk.FileChooserAction.SELECT_FOLDER
+        )
+        self.wall_dir_chooser.set_tooltip_text(
+            "Select the directory containing your wallpaper images"
+        )
         self.wall_dir_chooser.set_filename(bind_vars.get("wallpapers_dir", ""))
+        self.wall_dir_chooser.set_size_request(180, -1)
+        chooser_container.add(self.wall_dir_chooser)
+        top_grid.attach(chooser_container, 1, 1, 1, 1)
 
+        face_header = Label(markup="<b>Profile Icon</b>", h_align="start")
+        top_grid.attach(face_header, 2, 0, 2, 1)
         current_face = os.path.expanduser("~/.face.icon")
+        face_image_container = Box(
+            style_classes=["image-frame"], h_align="center", v_align="center"
+        )
+        self.face_image = FabricImage(size=64)
         try:
             if os.path.exists(current_face):
                 pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_size(current_face, 64, 64)
@@ -148,65 +224,349 @@ class HyprConfGUI(Window):
         except Exception as e:
             print(f"Error loading face icon: {e}")
             self.face_image.set_from_icon_name("image-missing", Gtk.IconSize.DIALOG)
+        face_image_container.add(self.face_image)
+        top_grid.attach(face_image_container, 2, 1, 1, 1)
 
-        self.datetime_12h_switch.set_active(bind_vars.get("datetime_12h_format", False))
+        browse_btn_container = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        browse_btn_container.set_halign(Gtk.Align.START)
+        browse_btn_container.set_valign(Gtk.Align.CENTER)
+        face_btn = Button(
+            label="Browse...",
+            tooltip_text="Select a square image for your profile icon",
+            on_clicked=self.on_select_face_icon,
+        )
+        browse_btn_container.add(face_btn)
+        top_grid.attach(browse_btn_container, 3, 1, 1, 1)
+        self.face_status_label = Label(label="", h_align="start")
+        top_grid.attach(self.face_status_label, 2, 2, 2, 1)
 
+        separator1 = Box(
+            style="min-height: 1px; background-color: alpha(@fg_color, 0.2); margin: 5px 0px;",
+            h_expand=True,
+        )
+        vbox.add(separator1)
+
+        # START NEW SECTION FOR DATETIME FORMAT
+        datetime_format_header = Label(
+            markup="<b>Date & Time Format</b>", h_align="start"
+        )
+        vbox.add(datetime_format_header)
+
+        datetime_grid = Gtk.Grid()
+        datetime_grid.set_column_spacing(20)
+        datetime_grid.set_row_spacing(10)
+        datetime_grid.set_margin_start(10)
+        datetime_grid.set_margin_top(5)
+        datetime_grid.set_margin_bottom(10)  # Adds space before the next section
+        vbox.add(datetime_grid)
+
+        datetime_12h_label = Label(
+            label="Use 12-Hour Clock", h_align="start", v_align="center"
+        )
+        datetime_grid.attach(datetime_12h_label, 0, 0, 1, 1)
+
+        datetime_12h_switch_container = Gtk.Box(
+            orientation=Gtk.Orientation.HORIZONTAL,
+            halign=Gtk.Align.START,
+            valign=Gtk.Align.CENTER,
+        )
+        self.datetime_12h_switch = Gtk.Switch(
+            active=bind_vars.get("datetime_12h_format", False)
+        )
+        datetime_12h_switch_container.add(self.datetime_12h_switch)
+        datetime_grid.attach(datetime_12h_switch_container, 1, 0, 1, 1)
+        # END NEW SECTION FOR DATETIME FORMAT
+
+        layout_header = Label(markup="<b>Layout Options</b>", h_align="start")
+        vbox.add(layout_header)
+        layout_grid = Gtk.Grid()
+        layout_grid.set_column_spacing(20)
+        layout_grid.set_row_spacing(10)
+        layout_grid.set_margin_start(10)
+        layout_grid.set_margin_top(5)
+        vbox.add(layout_grid)
+
+        position_label = Label(label="Bar Position", h_align="start", v_align="center")
+        layout_grid.attach(position_label, 0, 0, 1, 1)
+        position_combo_container = Gtk.Box(
+            orientation=Gtk.Orientation.HORIZONTAL,
+            halign=Gtk.Align.START,
+            valign=Gtk.Align.CENTER,
+        )
+        self.position_combo = Gtk.ComboBoxText()
+        self.position_combo.set_tooltip_text("Select the position of the bar")
         positions = ["Top", "Bottom", "Left", "Right"]
+        for pos in positions:
+            self.position_combo.append_text(pos)
         current_position = bind_vars.get("bar_position", "Top")
         try:
             self.position_combo.set_active(positions.index(current_position))
         except ValueError:
             self.position_combo.set_active(0)
+        self.position_combo.connect("changed", self.on_position_changed)
+        position_combo_container.add(self.position_combo)
+        layout_grid.attach(position_combo_container, 1, 0, 1, 1)
 
-        self.centered_switch.set_active(bind_vars.get("centered_bar", False))
-        self.centered_switch.set_sensitive(current_position in ["Left", "Right"])
+        centered_label = Label(
+            label="Centered Bar (Left/Right Only)", h_align="start", v_align="center"
+        )
+        layout_grid.attach(centered_label, 2, 0, 1, 1)
+        centered_switch_container = Gtk.Box(
+            orientation=Gtk.Orientation.HORIZONTAL,
+            halign=Gtk.Align.START,
+            valign=Gtk.Align.CENTER,
+        )
+        self.centered_switch = Gtk.Switch(
+            active=bind_vars.get("centered_bar", False),
+            sensitive=bind_vars.get("bar_position", "Top") in ["Left", "Right"],
+        )
+        centered_switch_container.add(self.centered_switch)
+        layout_grid.attach(centered_switch_container, 3, 0, 1, 1)
 
-        self.dock_switch.set_active(bind_vars.get("dock_enabled", True))
-        self.dock_hover_switch.set_active(bind_vars.get("dock_always_show", False))
-        self.dock_hover_switch.set_sensitive(self.dock_switch.get_active())
+        dock_label = Label(label="Show Dock", h_align="start", v_align="center")
+        layout_grid.attach(dock_label, 0, 1, 1, 1)
+        dock_switch_container = Gtk.Box(
+            orientation=Gtk.Orientation.HORIZONTAL,
+            halign=Gtk.Align.START,
+            valign=Gtk.Align.CENTER,
+        )
+        self.dock_switch = Gtk.Switch(active=bind_vars.get("dock_enabled", True))
+        self.dock_switch.connect("notify::active", self.on_dock_enabled_changed)
+        dock_switch_container.add(self.dock_switch)
+        layout_grid.attach(dock_switch_container, 1, 1, 1, 1)
 
-        self.dock_size_scale.set_value(bind_vars.get("dock_icon_size", 28))
+        dock_hover_label = Label(
+            label="Always Show Dock", h_align="start", v_align="center"
+        )
+        layout_grid.attach(dock_hover_label, 2, 1, 1, 1)
+        dock_hover_switch_container = Gtk.Box(
+            orientation=Gtk.Orientation.HORIZONTAL,
+            halign=Gtk.Align.START,
+            valign=Gtk.Align.CENTER,
+        )
+        self.dock_hover_switch = Gtk.Switch(
+            active=bind_vars.get("dock_always_show", False),
+            sensitive=self.dock_switch.get_active(),
+        )
+        dock_hover_switch_container.add(self.dock_hover_switch)
+        layout_grid.attach(dock_hover_switch_container, 3, 1, 1, 1)
 
-        self.ws_num_switch.set_active(bind_vars.get("bar_workspace_show_number", False))
-        self.ws_chinese_switch.set_active(bind_vars.get("bar_workspace_use_chinese_numerals", False))
-        self.ws_chinese_switch.set_sensitive(self.ws_num_switch.get_active())
+        dock_size_label = Label(
+            label="Dock Icon Size", h_align="start", v_align="center"
+        )
+        layout_grid.attach(dock_size_label, 0, 2, 1, 1)
+        self.dock_size_scale = Scale(
+            min_value=16,
+            max_value=48,
+            value=bind_vars.get("dock_icon_size", 28),
+            increments=(2, 4),
+            draw_value=True,
+            value_position="right",
+            digits=0,
+            h_expand=True,
+        )
+        layout_grid.attach(self.dock_size_scale, 1, 2, 3, 1)
 
-        self.special_ws_switch.set_active(bind_vars.get("bar_hide_special_workspace", True))
+        ws_num_label = Label(
+            label="Show Workspace Numbers", h_align="start", v_align="center"
+        )
+        layout_grid.attach(ws_num_label, 0, 3, 1, 1)
+        ws_num_switch_container = Gtk.Box(
+            orientation=Gtk.Orientation.HORIZONTAL,
+            halign=Gtk.Align.START,
+            valign=Gtk.Align.CENTER,
+        )
+        self.ws_num_switch = Gtk.Switch(
+            active=bind_vars.get("bar_workspace_show_number", False)
+        )
+        self.ws_num_switch.connect("notify::active", self.on_ws_num_changed)
+        ws_num_switch_container.add(self.ws_num_switch)
+        layout_grid.attach(ws_num_switch_container, 1, 3, 1, 1)
 
+        ws_chinese_label = Label(
+            label="Use Chinese Numerals", h_align="start", v_align="center"
+        )
+        layout_grid.attach(ws_chinese_label, 2, 3, 1, 1)
+        ws_chinese_switch_container = Gtk.Box(
+            orientation=Gtk.Orientation.HORIZONTAL,
+            halign=Gtk.Align.START,
+            valign=Gtk.Align.CENTER,
+        )
+        self.ws_chinese_switch = Gtk.Switch(
+            active=bind_vars.get("bar_workspace_use_chinese_numerals", False),
+            sensitive=self.ws_num_switch.get_active(),
+        )
+        ws_chinese_switch_container.add(self.ws_chinese_switch)
+        layout_grid.attach(ws_chinese_switch_container, 3, 3, 1, 1)
+
+        special_ws_label = Label(
+            label="Hide Special Workspace", h_align="start", v_align="center"
+        )
+        layout_grid.attach(special_ws_label, 0, 4, 1, 1)
+        special_ws_switch_container = Gtk.Box(
+            orientation=Gtk.Orientation.HORIZONTAL,
+            halign=Gtk.Align.START,
+            valign=Gtk.Align.CENTER,
+        )
+        self.special_ws_switch = Gtk.Switch(
+            active=bind_vars.get("bar_hide_special_workspace", True)
+        )
+        special_ws_switch_container.add(self.special_ws_switch)
+        layout_grid.attach(special_ws_switch_container, 1, 4, 1, 1)
+
+        bar_theme_label = Label(label="Bar Theme", h_align="start", v_align="center")
+        layout_grid.attach(bar_theme_label, 0, 5, 1, 1)
+        bar_theme_combo_container = Gtk.Box(
+            orientation=Gtk.Orientation.HORIZONTAL,
+            halign=Gtk.Align.START,
+            valign=Gtk.Align.CENTER,
+        )
+        self.bar_theme_combo = Gtk.ComboBoxText()
+        self.bar_theme_combo.set_tooltip_text("Select the visual theme for the bar")
         themes = ["Pills", "Dense", "Edge"]
+        for theme in themes:
+            self.bar_theme_combo.append_text(theme)
         current_theme = bind_vars.get("bar_theme", "Pills")
         try:
             self.bar_theme_combo.set_active(themes.index(current_theme))
         except ValueError:
             self.bar_theme_combo.set_active(0)
+        bar_theme_combo_container.add(self.bar_theme_combo)
+        layout_grid.attach(bar_theme_combo_container, 1, 5, 3, 1)
 
+        dock_theme_label = Label(label="Dock Theme", h_align="start", v_align="center")
+        layout_grid.attach(dock_theme_label, 0, 6, 1, 1)
+        dock_theme_combo_container = Gtk.Box(
+            orientation=Gtk.Orientation.HORIZONTAL,
+            halign=Gtk.Align.START,
+            valign=Gtk.Align.CENTER,
+        )
+        self.dock_theme_combo = Gtk.ComboBoxText()
+        self.dock_theme_combo.set_tooltip_text("Select the visual theme for the dock")
+        for theme in themes:
+            self.dock_theme_combo.append_text(theme)
         current_dock_theme = bind_vars.get("dock_theme", "Pills")
         try:
             self.dock_theme_combo.set_active(themes.index(current_dock_theme))
         except ValueError:
             self.dock_theme_combo.set_active(0)
+        dock_theme_combo_container.add(self.dock_theme_combo)
+        layout_grid.attach(dock_theme_combo_container, 1, 6, 3, 1)
 
+        panel_theme_label = Label(
+            label="Panel Theme", h_align="start", v_align="center"
+        )
+        layout_grid.attach(panel_theme_label, 0, 7, 1, 1)
+        panel_theme_combo_container = Box(
+            orientation=Gtk.Orientation.HORIZONTAL,
+            halign=Gtk.Align.START,
+            valign=Gtk.Align.CENTER,
+        )
+        self.panel_theme_combo = Gtk.ComboBoxText()
+        self.panel_theme_combo.set_tooltip_text(
+            "Select the theme/mode for panels like toolbox, clipboard, etc."
+        )
         panel_themes = ["Notch", "Panel"]
+        for theme in panel_themes:
+            self.panel_theme_combo.append_text(theme)
         current_panel_theme = bind_vars.get("panel_theme", "Notch")
         try:
             self.panel_theme_combo.set_active(panel_themes.index(current_panel_theme))
         except ValueError:
             self.panel_theme_combo.set_active(0)
+        panel_theme_combo_container.add(self.panel_theme_combo)
+        layout_grid.attach(panel_theme_combo_container, 1, 7, 1, 1)
+        self.panel_theme_combo.connect(
+            "changed", self._on_panel_theme_changed_for_position_sensitivity
+        )
 
         self.panel_position_options = ["Start", "Center", "End"]
-        current_panel_position = bind_vars.get(PANEL_POSITION_KEY, PANEL_POSITION_DEFAULT)
+
+        panel_position_label = Label(
+            label="Panel Position", h_align="start", v_align="center"
+        )
+        layout_grid.attach(panel_position_label, 2, 7, 1, 1)
+
+        panel_position_combo_container = Box(
+            orientation=Gtk.Orientation.HORIZONTAL,
+            halign=Gtk.Align.START,
+            valign=Gtk.Align.CENTER,
+        )
+        self.panel_position_combo = Gtk.ComboBoxText()
+        self.panel_position_combo.set_tooltip_text(
+            "Select the position for the 'Panel' theme panels"
+        )
+        for option in self.panel_position_options:
+            self.panel_position_combo.append_text(option)
+
+        current_panel_position = bind_vars.get(
+            PANEL_POSITION_KEY, PANEL_POSITION_DEFAULT
+        )
         try:
-            self.panel_position_combo.set_active(self.panel_position_options.index(current_panel_position))
+            self.panel_position_combo.set_active(
+                self.panel_position_options.index(current_panel_position)
+            )
         except ValueError:
-            self.panel_position_combo.set_active(0)
+            try:
+                self.panel_position_combo.set_active(
+                    self.panel_position_options.index(PANEL_POSITION_DEFAULT)
+                )
+            except ValueError:
+                self.panel_position_combo.set_active(0)
+
+        panel_position_combo_container.add(self.panel_position_combo)
+        layout_grid.attach(panel_position_combo_container, 3, 7, 1, 1)
+
+        notification_pos_label = Label(
+            label="Notification Position", h_align="start", v_align="center"
+        )
+        layout_grid.attach(notification_pos_label, 0, 8, 1, 1)
+
+        notification_pos_combo_container = Box(
+            orientation=Gtk.Orientation.HORIZONTAL,
+            halign=Gtk.Align.START,
+            valign=Gtk.Align.CENTER,
+        )
+
+        self.notification_pos_combo = Gtk.ComboBoxText()
+        self.notification_pos_combo.set_tooltip_text(
+            "Select where notifications appear on the screen."
+        )
 
         notification_positions_list = ["Top", "Bottom"]
+        for pos in notification_positions_list:
+            self.notification_pos_combo.append_text(pos)
+
         current_notif_pos = bind_vars.get(NOTIF_POS_KEY, NOTIF_POS_DEFAULT)
         try:
-            self.notification_pos_combo.set_active(notification_positions_list.index(current_notif_pos))
+            self.notification_pos_combo.set_active(
+                notification_positions_list.index(current_notif_pos)
+            )
         except ValueError:
             self.notification_pos_combo.set_active(0)
 
+        self.notification_pos_combo.connect(
+            "changed", self.on_notification_position_changed
+        )
+
+        notification_pos_combo_container.add(self.notification_pos_combo)
+        layout_grid.attach(notification_pos_combo_container, 1, 8, 3, 1)
+
+        separator2 = Box(
+            style="min-height: 1px; background-color: alpha(@fg_color, 0.2); margin: 5px 0px;",
+            h_expand=True,
+        )
+        vbox.add(separator2)
+
+        components_header = Label(markup="<b>Modules</b>", h_align="start")
+        vbox.add(components_header)
+        components_grid = Gtk.Grid()
+        components_grid.set_column_spacing(15)
+        components_grid.set_row_spacing(8)
+        components_grid.set_margin_start(10)
+        components_grid.set_margin_top(5)
+        vbox.add(components_grid)
+
         self.component_switches = {}
         component_display_names = {
             "button_apps": "App Launcher Button",
@@ -225,34 +585,32 @@ class HyprConfGUI(Window):
             "button_power": "Power Button",
         }
 
-        self.corners_switch = self.builder.get_widget("corners_switch")
-        self.corners_switch.set_active(bind_vars.get("corners_visible", True))
+        self.corners_switch = Gtk.Switch(active=bind_vars.get("corners_visible", True))
+        num_components = len(component_display_names) + 1
+        rows_per_column = (num_components + 1) // 2
 
-        self.component_switches = {}
-        component_display_names = {
-            "button_apps": "App Launcher Button",
-            "systray": "System Tray",
-            "control": "Control Panel",
-            "network": "Network Applet",
-            "button_tools": "Toolbox Button",
-            "sysprofiles": "Powerprofiles Switcher",
-            "button_overview": "Overview Button",
-            "ws_container": "Workspaces",
-            "weather": "Weather Widget",
-            "battery": "Battery Indicator",
-            "metrics": "System Metrics",
-            "language": "Language Indicator",
-            "date_time": "Date & Time",
-            "button_power": "Power Button",
-        }
+        corners_label = Label(
+            label="Rounded Corners", h_align="start", v_align="center"
+        )
+        components_grid.attach(corners_label, 0, 0, 1, 1)
+        switch_container_corners = Gtk.Box(
+            orientation=Gtk.Orientation.HORIZONTAL,
+            halign=Gtk.Align.START,
+            valign=Gtk.Align.CENTER,
+        )
+        switch_container_corners.add(self.corners_switch)
+        components_grid.attach(switch_container_corners, 1, 0, 1, 1)
 
-        num_components = len(component_display_names)
-        rows_per_column = (num_components + 2) // 2
-
+        current_row = 0
+        current_col = 0
         item_idx = 0
-        for name, display in component_display_names.items():
-            row = item_idx % rows_per_column + 1
-            col = (item_idx // rows_per_column) * 2
+        for i, (name, display) in enumerate(component_display_names.items()):
+            if item_idx < (rows_per_column - 1):
+                row = item_idx + 1
+                col = 0
+            else:
+                row = item_idx - (rows_per_column - 1)
+                col = 2
 
             component_label = Label(label=display, h_align="start", v_align="center")
             components_grid.attach(component_label, col, row, 1, 1)
@@ -262,170 +620,16 @@ class HyprConfGUI(Window):
                 halign=Gtk.Align.START,
                 valign=Gtk.Align.CENTER,
             )
-            component_switch = Gtk.Switch(active=bind_vars.get(f"bar_{name}_visible", True))
+            component_switch = Gtk.Switch(
+                active=bind_vars.get(f"bar_{name}_visible", True)
+            )
             switch_container.add(component_switch)
             components_grid.attach(switch_container, col + 1, row, 1, 1)
             self.component_switches[name] = component_switch
             item_idx += 1
 
         self._update_panel_position_sensitivity()
-        return self.builder.get_widget("appearance_tab_content")
-
-    def create_system_tab(self):
-        # Get widget references from the builder
-        system_grid = self.builder.get_widget("system_grid")
-        self.auto_append_switch = self.builder.get_widget("auto_append_switch")
-        self.monitor_selection_container = self.builder.get_widget("monitor_selection_container")
-        self.terminal_entry = self.builder.get_widget("terminal_entry")
-        notif_grid = self.builder.get_widget("notif_grid")
-        self.limited_apps_entry = self.builder.get_widget("limited_apps_entry")
-        self.ignored_apps_entry = self.builder.get_widget("ignored_apps_entry")
-        metrics_grid = self.builder.get_widget("metrics_grid")
-        self.disk_entries = self.builder.get_widget("disk_entries")
-
-        # Populate widgets with data from bind_vars
-        self.auto_append_switch.set_active(bind_vars.get("auto_append_hyprland", True))
-
-        self.monitor_checkboxes = {}
-        try:
-            from utils.monitor_manager import get_monitor_manager
-            monitor_manager = get_monitor_manager()
-            available_monitors = monitor_manager.get_monitors()
-        except (ImportError, Exception) as e:
-            print(f"Could not get monitor info for settings: {e}")
-            available_monitors = [{'id': 0, 'name': 'default'}]
-
-        current_selection = bind_vars.get("selected_monitors", [])
-        for monitor in available_monitors:
-            monitor_name = monitor.get('name', f'monitor-{monitor.get("id", 0)}')
-            checkbox_container = Box(orientation="h", spacing=5, h_align="start")
-            checkbox = Gtk.CheckButton(label=monitor_name)
-            is_selected = len(current_selection) == 0 or monitor_name in current_selection
-            checkbox.set_active(is_selected)
-            checkbox_container.add(checkbox)
-            self.monitor_selection_container.add(checkbox_container)
-            self.monitor_checkboxes[monitor_name] = checkbox
-
-        hint_label = Label(markup="<small>Leave all unchecked to show on all monitors</small>", h_align="start")
-        self.monitor_selection_container.add(hint_label)
-
-        self.terminal_entry.set_text(bind_vars.get("terminal_command", "kitty -e"))
-
-        row = 4
-        self.lock_switch = None
-        if self.show_lock_checkbox:
-            lock_label = Label(label="Replace Hyprlock config", h_align="start", v_align="center")
-            system_grid.attach(lock_label, 2, row, 1, 1)
-            lock_switch_container = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, halign=Gtk.Align.START, valign=Gtk.Align.CENTER)
-            self.lock_switch = Gtk.Switch(tooltip_text="Replace Hyprlock configuration with Ax-Shell's custom config")
-            lock_switch_container.add(self.lock_switch)
-            system_grid.attach(lock_switch_container, 3, row, 1, 1)
-            row += 1
-        self.idle_switch = None
-        if self.show_idle_checkbox:
-            idle_label = Label(label="Replace Hypridle config", h_align="start", v_align="center")
-            system_grid.attach(idle_label, 2, row, 1, 1)
-            idle_switch_container = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, halign=Gtk.Align.START, valign=Gtk.Align.CENTER)
-            self.idle_switch = Gtk.Switch(tooltip_text="Replace Hypridle configuration with Ax-Shell's custom config")
-            idle_switch_container.add(self.idle_switch)
-            system_grid.attach(idle_switch_container, 3, row, 1, 1)
-            row += 1
-        if self.show_lock_checkbox or self.show_idle_checkbox:
-            note_label = Label(markup="<small>Existing configs will be backed up</small>", h_align="start")
-            system_grid.attach(note_label, 2, row, 2, 1)
-
-        limited_apps_list = bind_vars.get("limited_apps_history", ["Spotify"])
-        limited_apps_text = ", ".join(f'"{app}"' for app in limited_apps_list)
-        self.limited_apps_entry.set_text(limited_apps_text)
-
-        ignored_apps_list = bind_vars.get("history_ignored_apps", ["Hyprshot"])
-        ignored_apps_text = ", ".join(f'"{app}"' for app in ignored_apps_list)
-        self.ignored_apps_entry.set_text(ignored_apps_text)
-
-        self.metrics_switches = {}
-        self.metrics_small_switches = {}
-        metric_names = {"cpu": "CPU", "ram": "RAM", "disk": "Disk", "gpu": "GPU"}
-
-        metrics_grid.attach(Label(label="Show in Metrics", h_align="start"), 0, 0, 1, 1)
-        for i, (key, label_text) in enumerate(metric_names.items()):
-            switch = Gtk.Switch(active=bind_vars.get("metrics_visible", {}).get(key, True))
-            self.metrics_switches[key] = switch
-            metrics_grid.attach(Label(label=label_text, h_align="start"), 0, i + 1, 1, 1)
-            metrics_grid.attach(switch, 1, i + 1, 1, 1)
-
-        metrics_grid.attach(Label(label="Show in Small Metrics", h_align="start"), 2, 0, 1, 1)
-        for i, (key, label_text) in enumerate(metric_names.items()):
-            switch = Gtk.Switch(active=bind_vars.get("metrics_small_visible", {}).get(key, True))
-            self.metrics_small_switches[key] = switch
-            metrics_grid.attach(Label(label=label_text, h_align="start"), 2, i + 1, 1, 1)
-            metrics_grid.attach(switch, 3, i + 1, 1, 1)
-
-        def enforce_minimum_metrics(switch_dict):
-            enabled_switches = [s for s in switch_dict.values() if s.get_active()]
-            can_disable = len(enabled_switches) > 3
-            for s in switch_dict.values():
-                s.set_sensitive(True if can_disable or not s.get_active() else False)
-
-        def on_metric_toggle(switch, gparam, switch_dict):
-            enforce_minimum_metrics(switch_dict)
-
-        for k_s, s_s in self.metrics_switches.items():
-            s_s.connect("notify::active", on_metric_toggle, self.metrics_switches)
-        for k_s, s_s in self.metrics_small_switches.items():
-            s_s.connect("notify::active", on_metric_toggle, self.metrics_small_switches)
-        enforce_minimum_metrics(self.metrics_switches)
-        enforce_minimum_metrics(self.metrics_small_switches)
-
-        for p in bind_vars.get("bar_metrics_disks", ["/"]):
-            self._add_disk_entry_widget(p)
-
-        return self.builder.get_widget("system_tab_content")
-
-    def on_add_disk_entry(self, _):
-        self._add_disk_entry_widget("/")
-
-    def _add_disk_entry_widget(self, path):
-        """Helper para añadir una fila de entrada de disco al Box disk_entries."""
-        bar = Box(orientation="h", spacing=10, h_align="start")
-        entry = Entry(text=path, h_expand=True)
-        bar.add(entry)
-        x_btn = Button(label="X")
-        x_btn.connect(
-            "clicked",
-            lambda _, current_bar_to_remove=bar: self.disk_entries.remove(
-                current_bar_to_remove
-            ),
-        )
-        bar.add(x_btn)
-        self.disk_entries.add(bar)
-        self.disk_entries.show_all()
-
-    def create_about_tab(self):
-        return self.builder.get_widget("about_tab_content")
-
-    def on_kofi_clicked(self, _):
-        import webbrowser
-        webbrowser.open("https://ko-fi.com/Axenide")
-
-    # Include all the handler methods from the original class
-    def on_ws_num_changed(self, switch, gparam):
-        is_active = switch.get_active()
-        self.ws_chinese_switch.set_sensitive(is_active)
-        if not is_active:
-            self.ws_chinese_switch.set_active(False)
-
-    def on_position_changed(self, combo):
-        position = combo.get_active_text()
-        is_vertical = position in ["Left", "Right"]
-        self.centered_switch.set_sensitive(is_vertical)
-        if not is_vertical:
-            self.centered_switch.set_active(False)
-
-    def on_dock_enabled_changed(self, switch, gparam):
-        is_active = switch.get_active()
-        self.dock_hover_switch.set_sensitive(is_active)
-        if not is_active:
-            self.dock_hover_switch.set_active(False)
+        return scrolled_window
 
     def _on_panel_theme_changed_for_position_sensitivity(self, combo):
         self._update_panel_position_sensitivity()
@@ -444,13 +648,341 @@ class HyprConfGUI(Window):
                 f"Notification position updated in bind_vars: {bind_vars[NOTIF_POS_KEY]}"
             )
 
-    def on_notification_position_changed(self, combo: Gtk.ComboBoxText):
-        selected_text = combo.get_active_text()
-        if selected_text:
-            bind_vars[NOTIF_POS_KEY] = selected_text
-            print(
-                f"Notification position updated in bind_vars: {bind_vars[NOTIF_POS_KEY]}"
+    def create_system_tab(self):
+        scrolled_window = ScrolledWindow(
+            h_scrollbar_policy="never",
+            v_scrollbar_policy="automatic",
+            h_expand=True,
+            v_expand=True,
+            propagate_width=False,
+            propagate_height=False,
+        )
+
+        vbox = Box(orientation="v", spacing=15, style="margin: 15px;")
+        scrolled_window.add(vbox)
+
+        system_grid = Gtk.Grid()
+        system_grid.set_column_spacing(20)
+        system_grid.set_row_spacing(10)
+        system_grid.set_margin_bottom(15)
+        vbox.add(system_grid)
+
+        # Auto-append checkbox - first option
+        auto_append_label = Label(
+            label="Auto-append to hyprland.conf", h_align="start", v_align="center"
+        )
+        system_grid.attach(auto_append_label, 0, 0, 1, 1)
+        auto_append_switch_container = Gtk.Box(
+            orientation=Gtk.Orientation.HORIZONTAL,
+            halign=Gtk.Align.START,
+            valign=Gtk.Align.CENTER,
+        )
+        self.auto_append_switch = Gtk.Switch(
+            active=bind_vars.get("auto_append_hyprland", True),
+            tooltip_text="Automatically append Ax-Shell source string to hyprland.conf"
+        )
+        auto_append_switch_container.add(self.auto_append_switch)
+        system_grid.attach(auto_append_switch_container, 1, 0, 1, 1)
+
+        # Monitor Selection - second option
+        monitor_header = Label(markup="<b>Monitor Selection</b>", h_align="start")
+        system_grid.attach(monitor_header, 0, 1, 2, 1)
+        
+        monitor_label = Label(
+            label="Show Ax-Shell on monitors:", h_align="start", v_align="center"
+        )
+        system_grid.attach(monitor_label, 0, 2, 1, 1)
+        
+        # Create monitor selection container
+        self.monitor_selection_container = Box(orientation="v", spacing=5, h_align="start")
+        self.monitor_checkboxes = {}
+        
+        # Get available monitors
+        try:
+            from utils.monitor_manager import get_monitor_manager
+            monitor_manager = get_monitor_manager()
+            available_monitors = monitor_manager.get_monitors()
+        except (ImportError, Exception) as e:
+            print(f"Could not get monitor info for settings: {e}")
+            available_monitors = [{'id': 0, 'name': 'default'}]
+        
+        # Get current selection from config
+        current_selection = bind_vars.get("selected_monitors", [])
+        
+        # Create checkboxes for each monitor
+        for monitor in available_monitors:
+            monitor_name = monitor.get('name', f'monitor-{monitor.get("id", 0)}')
+            
+            checkbox_container = Box(orientation="h", spacing=5, h_align="start")
+            checkbox = Gtk.CheckButton(label=monitor_name)
+            
+            # Check if this monitor is selected (empty selection means all selected)
+            is_selected = len(current_selection) == 0 or monitor_name in current_selection
+            checkbox.set_active(is_selected)
+            
+            checkbox_container.add(checkbox)
+            self.monitor_selection_container.add(checkbox_container)
+            self.monitor_checkboxes[monitor_name] = checkbox
+        
+        # Add hint label
+        hint_label = Label(
+            markup="<small>Leave all unchecked to show on all monitors</small>",
+            h_align="start",
+        )
+        self.monitor_selection_container.add(hint_label)
+        
+        system_grid.attach(self.monitor_selection_container, 1, 2, 1, 1)
+
+        terminal_header = Label(markup="<b>Terminal Settings</b>", h_align="start")
+        system_grid.attach(terminal_header, 0, 3, 2, 1)
+        terminal_label = Label(label="Command:", h_align="start", v_align="center")
+        system_grid.attach(terminal_label, 0, 4, 1, 1)
+        self.terminal_entry = Entry(
+            text=bind_vars.get("terminal_command", "kitty -e"),
+            tooltip_text="Command used to launch terminal apps (e.g., 'kitty -e')",
+            h_expand=True,
+        )
+        system_grid.attach(self.terminal_entry, 1, 4, 1, 1)
+        hint_label = Label(
+            markup="<small>Examples: 'kitty -e', 'alacritty -e', 'foot -e'</small>",
+            h_align="start",
+        )
+        system_grid.attach(hint_label, 0, 5, 2, 1)
+
+        hypr_header = Label(markup="<b>Hyprland Integration</b>", h_align="start")
+        system_grid.attach(hypr_header, 2, 3, 2, 1)
+        row = 4
+        self.lock_switch = None
+        if self.show_lock_checkbox:
+            lock_label = Label(
+                label="Replace Hyprlock config", h_align="start", v_align="center"
             )
+            system_grid.attach(lock_label, 2, row, 1, 1)
+            lock_switch_container = Gtk.Box(
+                orientation=Gtk.Orientation.HORIZONTAL,
+                halign=Gtk.Align.START,
+                valign=Gtk.Align.CENTER,
+            )
+            self.lock_switch = Gtk.Switch(
+                tooltip_text="Replace Hyprlock configuration with Ax-Shell's custom config"
+            )
+            lock_switch_container.add(self.lock_switch)
+            system_grid.attach(lock_switch_container, 3, row, 1, 1)
+            row += 1
+        self.idle_switch = None
+        if self.show_idle_checkbox:
+            idle_label = Label(
+                label="Replace Hypridle config", h_align="start", v_align="center"
+            )
+            system_grid.attach(idle_label, 2, row, 1, 1)
+            idle_switch_container = Gtk.Box(
+                orientation=Gtk.Orientation.HORIZONTAL,
+                halign=Gtk.Align.START,
+                valign=Gtk.Align.CENTER,
+            )
+            self.idle_switch = Gtk.Switch(
+                tooltip_text="Replace Hypridle configuration with Ax-Shell's custom config"
+            )
+            idle_switch_container.add(self.idle_switch)
+            system_grid.attach(idle_switch_container, 3, row, 1, 1)
+            row += 1
+        if self.show_lock_checkbox or self.show_idle_checkbox:
+            note_label = Label(
+                markup="<small>Existing configs will be backed up</small>",
+                h_align="start",
+            )
+            system_grid.attach(note_label, 2, row, 2, 1)
+
+        # Notifications app lists section
+        notifications_header = Label(
+            markup="<b>Notification Settings</b>", h_align="start"
+        )
+        vbox.add(notifications_header)
+
+        notif_grid = Gtk.Grid()
+        notif_grid.set_column_spacing(20)
+        notif_grid.set_row_spacing(10)
+        notif_grid.set_margin_start(10)
+        notif_grid.set_margin_top(5)
+        notif_grid.set_margin_bottom(15)
+        vbox.add(notif_grid)
+
+        # Limited Apps History
+        limited_apps_label = Label(
+            label="Limited Apps History:", h_align="start", v_align="center"
+        )
+        notif_grid.attach(limited_apps_label, 0, 0, 1, 1)
+
+        limited_apps_list = bind_vars.get("limited_apps_history", ["Spotify"])
+        limited_apps_text = ", ".join(f'"{app}"' for app in limited_apps_list)
+        self.limited_apps_entry = Entry(
+            text=limited_apps_text,
+            tooltip_text='Enter app names separated by commas, e.g: "Spotify", "Discord"',
+            h_expand=True,
+        )
+        notif_grid.attach(self.limited_apps_entry, 1, 0, 1, 1)
+
+        limited_apps_hint = Label(
+            markup='<small>Apps with limited notification history (format: "App1", "App2")</small>',
+            h_align="start",
+        )
+        notif_grid.attach(limited_apps_hint, 0, 1, 2, 1)
+
+        # History Ignored Apps
+        ignored_apps_label = Label(
+            label="History Ignored Apps:", h_align="start", v_align="center"
+        )
+        notif_grid.attach(ignored_apps_label, 0, 2, 1, 1)
+
+        ignored_apps_list = bind_vars.get("history_ignored_apps", ["Hyprshot"])
+        ignored_apps_text = ", ".join(f'"{app}"' for app in ignored_apps_list)
+        self.ignored_apps_entry = Entry(
+            text=ignored_apps_text,
+            tooltip_text='Enter app names separated by commas, e.g: "Hyprshot", "Screenshot"',
+            h_expand=True,
+        )
+        notif_grid.attach(self.ignored_apps_entry, 1, 2, 1, 1)
+
+        ignored_apps_hint = Label(
+            markup='<small>Apps whose notifications are ignored in history (format: "App1", "App2")</small>',
+            h_align="start",
+        )
+        notif_grid.attach(ignored_apps_hint, 0, 3, 2, 1)
+
+        metrics_header = Label(markup="<b>System Metrics Options</b>", h_align="start")
+        vbox.add(metrics_header)
+        metrics_grid = Gtk.Grid(
+            column_spacing=15, row_spacing=8, margin_start=10, margin_top=5
+        )
+        vbox.add(metrics_grid)
+
+        self.metrics_switches = {}
+        self.metrics_small_switches = {}
+        metric_names = {"cpu": "CPU", "ram": "RAM", "disk": "Disk", "gpu": "GPU"}
+
+        metrics_grid.attach(Label(label="Show in Metrics", h_align="start"), 0, 0, 1, 1)
+        for i, (key, label_text) in enumerate(metric_names.items()):
+            switch = Gtk.Switch(
+                active=bind_vars.get("metrics_visible", {}).get(key, True)
+            )
+            self.metrics_switches[key] = switch
+            metrics_grid.attach(
+                Label(label=label_text, h_align="start"), 0, i + 1, 1, 1
+            )
+            metrics_grid.attach(switch, 1, i + 1, 1, 1)
+
+        metrics_grid.attach(
+            Label(label="Show in Small Metrics", h_align="start"), 2, 0, 1, 1
+        )
+        for i, (key, label_text) in enumerate(metric_names.items()):
+            switch = Gtk.Switch(
+                active=bind_vars.get("metrics_small_visible", {}).get(key, True)
+            )
+            self.metrics_small_switches[key] = switch
+            metrics_grid.attach(
+                Label(label=label_text, h_align="start"), 2, i + 1, 1, 1
+            )
+            metrics_grid.attach(switch, 3, i + 1, 1, 1)
+
+        def enforce_minimum_metrics(switch_dict):
+            enabled_switches = [s for s in switch_dict.values() if s.get_active()]
+            can_disable = len(enabled_switches) > 3
+            for s in switch_dict.values():
+                s.set_sensitive(True if can_disable or not s.get_active() else False)
+
+        def on_metric_toggle(switch, gparam, switch_dict):
+            enforce_minimum_metrics(switch_dict)
+
+        for k_s, s_s in self.metrics_switches.items():
+            s_s.connect("notify::active", on_metric_toggle, self.metrics_switches)
+        for k_s, s_s in self.metrics_small_switches.items():
+            s_s.connect("notify::active", on_metric_toggle, self.metrics_small_switches)
+        enforce_minimum_metrics(self.metrics_switches)
+        enforce_minimum_metrics(self.metrics_small_switches)
+
+        disks_label = Label(
+            label="Disk directories for Metrics", h_align="start", v_align="center"
+        )
+        vbox.add(disks_label)
+        self.disk_entries = Box(orientation="v", spacing=8, h_align="start")
+
+        self._create_disk_edit_entry_func = lambda path: self._add_disk_entry_widget(
+            path
+        )
+
+        for p in bind_vars.get("bar_metrics_disks", ["/"]):
+            self._create_disk_edit_entry_func(p)
+        vbox.add(self.disk_entries)
+
+        add_container = Gtk.Box(
+            orientation=Gtk.Orientation.HORIZONTAL,
+            halign=Gtk.Align.START,
+            valign=Gtk.Align.CENTER,
+        )
+        add_btn = Button(
+            label="Add new disk",
+            on_clicked=lambda _: self._create_disk_edit_entry_func("/"),
+        )
+        add_container.add(add_btn)
+        vbox.add(add_container)
+
+        return scrolled_window
+
+    def _add_disk_entry_widget(self, path):
+        """Helper para añadir una fila de entrada de disco al Box disk_entries."""
+        bar = Box(orientation="h", spacing=10, h_align="start")
+        entry = Entry(text=path, h_expand=True)
+        bar.add(entry)
+        x_btn = Button(label="X")
+        x_btn.connect(
+            "clicked",
+            lambda _, current_bar_to_remove=bar: self.disk_entries.remove(
+                current_bar_to_remove
+            ),
+        )
+        bar.add(x_btn)
+        self.disk_entries.add(bar)
+        self.disk_entries.show_all()
+
+    def create_about_tab(self):
+        vbox = Box(orientation="v", spacing=18, style="margin: 30px;")
+        vbox.add(
+            Label(
+                markup=f"<b>{APP_NAME_CAP}</b>",
+                h_align="start",
+                style="font-size: 1.5em; margin-bottom: 8px;",
+            )
+        )
+        vbox.add(
+            Label(
+                label="A hackable shell for Hyprland, powered by Fabric.",
+                h_align="start",
+                style="margin-bottom: 12px;",
+            )
+        )
+        repo_box = Box(orientation="h", spacing=6, h_align="start")
+        repo_label = Label(label="GitHub:", h_align="start")
+        repo_link = Label(
+            markup='<a href="https://github.com/Axenide/Ax-Shell">https://github.com/Axenide/Ax-Shell</a>'
+        )
+        repo_box.add(repo_label)
+        repo_box.add(repo_link)
+        vbox.add(repo_box)
+
+        def on_kofi_clicked(_):
+            import webbrowser
+
+            webbrowser.open("https://ko-fi.com/Axenide")
+
+        kofi_btn = Button(
+            label="Support on Ko-Fi ❤️",
+            on_clicked=on_kofi_clicked,
+            tooltip_text="Support Axenide on Ko-Fi",
+            style="margin-top: 18px; min-width: 160px;",
+        )
+        vbox.add(kofi_btn)
+        vbox.add(Box(v_expand=True))
+        return vbox
 
     def on_ws_num_changed(self, switch, gparam):
         is_active = switch.get_active()
@@ -532,9 +1064,7 @@ class HyprConfGUI(Window):
         )
         current_bind_vars_snapshot["dock_icon_size"] = int(self.dock_size_scale.value)
         current_bind_vars_snapshot["terminal_command"] = self.terminal_entry.get_text()
-        current_bind_vars_snapshot["auto_append_hyprland"] = (
-            self.auto_append_switch.get_active()
-        )
+        current_bind_vars_snapshot["auto_append_hyprland"] = self.auto_append_switch.get_active()
         current_bind_vars_snapshot["corners_visible"] = self.corners_switch.get_active()
         current_bind_vars_snapshot["bar_workspace_show_number"] = (
             self.ws_num_switch.get_active()
@@ -610,11 +1140,9 @@ class HyprConfGUI(Window):
             if checkbox.get_active():
                 selected_monitors.append(monitor_name)
                 any_checked = True
-
+        
         # If no monitors are checked, use empty array (means show on all monitors)
-        current_bind_vars_snapshot["selected_monitors"] = (
-            selected_monitors if any_checked else []
-        )
+        current_bind_vars_snapshot["selected_monitors"] = selected_monitors if any_checked else []
 
         selected_icon_path = self.selected_face_icon
         replace_lock = self.lock_switch and self.lock_switch.get_active()
@@ -694,9 +1222,7 @@ class HyprConfGUI(Window):
                 from .settings_constants import SOURCE_STRING
 
                 # Check if auto-append is enabled
-                auto_append_enabled = current_bind_vars_snapshot.get(
-                    "auto_append_hyprland", True
-                )
+                auto_append_enabled = current_bind_vars_snapshot.get("auto_append_hyprland", True)
                 if auto_append_enabled:
                     needs_append = True
                     if os.path.exists(hypr_path):
@@ -940,9 +1466,7 @@ class HyprConfGUI(Window):
             default_monitors = DEFAULTS.get("selected_monitors", [])
             for monitor_name, checkbox in self.monitor_checkboxes.items():
                 # If defaults is empty, check all monitors (show on all)
-                is_selected = (
-                    len(default_monitors) == 0 or monitor_name in default_monitors
-                )
+                is_selected = len(default_monitors) == 0 or monitor_name in default_monitors
                 checkbox.set_active(is_selected)
 
             self._update_panel_position_sensitivity()
