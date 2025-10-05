@@ -1,3 +1,9 @@
+Personal fork:
+
+- fancier workspace switcher
+- multi-monitor fixes
+- (multi-monitor) optimizations
+
 <p align="center">
 <a href="https://github.com/Axenide/Ax-Shell">
   <img src="assets/cover.png">
