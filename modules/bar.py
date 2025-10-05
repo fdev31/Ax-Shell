@@ -67,6 +67,40 @@ def build_caption(i: int, start_workspace: int):
         return label
 
 
+class FancyWorkspaces(Workspaces):
+    def __init__(self, workspace_range: list, workspace_change_hook=None):
+        start_workspace = workspace_range[0] if workspace_range is not None else 1
+        super().__init__(
+            name="workspaces-num",
+            invert_scroll=True,
+            empty_scroll=True,
+            v_align="fill",
+            orientation="h" if not data.VERTICAL else "v",
+            spacing=0 if not data.BAR_WORKSPACE_USE_CHINESE_NUMERALS else 4,
+            buttons=[
+                WorkspaceButton(
+                    h_expand=False,
+                    v_expand=False,
+                    h_align="center",
+                    v_align="center",
+                    id=i,
+                    label=build_caption(i, start_workspace),
+                )
+                for i in workspace_range
+            ],
+            buttons_factory=(
+                None
+                if data.BAR_HIDE_SPECIAL_WORKSPACE
+                else Workspaces.default_buttons_factory
+            ),
+        )
+        self._workspace_change_hook = workspace_change_hook
+
+    def on_monitor(self, _, event: HyprlandEvent):
+        self._workspace_change_hook(int(event.data[1]))
+        return super().on_monitor(_, event)
+
+
 class Bar(Window):
     def __init__(self, monitor_id: int = 0, **kwargs):
         self.monitor_id = monitor_id
@@ -127,29 +161,9 @@ class Bar(Window):
         end_workspace = data.BAR_WORKSPACE_END
         workspace_range = range(start_workspace, end_workspace + 1)
 
-        self.workspaces_labeled = Workspaces(
-            name="workspaces-num",
-            invert_scroll=True,
-            empty_scroll=True,
-            v_align="fill",
-            orientation="h" if not data.VERTICAL else "v",
-            spacing=0 if not data.BAR_WORKSPACE_USE_CHINESE_NUMERALS else 4,
-            buttons=[
-                WorkspaceButton(
-                    h_expand=False,
-                    v_expand=False,
-                    h_align="center",
-                    v_align="center",
-                    id=i,
-                    label=build_caption(i, start_workspace),
-                )
-                for i in workspace_range
-            ],
-            buttons_factory=(
-                None
-                if data.BAR_HIDE_SPECIAL_WORKSPACE
-                else Workspaces.default_buttons_factory
-            ),
+        self.workspaces_labeled = FancyWorkspaces(
+            workspace_change_hook=self.update_rail,
+            workspace_range=list(workspace_range),
         )
 
         self.ws_rail = Box(name="workspace-rail", h_align="start", v_align="center")
